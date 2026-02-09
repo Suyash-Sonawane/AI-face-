@@ -52,7 +52,12 @@ class KeypointExtractor():
                     with torch.no_grad():
                         # face detection -> face alignment.
                         img = np.array(images)
-                        bboxes = self.det_net.detect_faces(images, 0.97)
+                        # Use lower confidence threshold (0.90) for faster detection
+                        bboxes = self.det_net.detect_faces(images, 0.90)
+                        
+                        # Check if any faces were detected
+                        if bboxes is None or len(bboxes) == 0:
+                            raise TypeError('No face detected in this image')
                         
                         bboxes = bboxes[0]
                         img = img[int(bboxes[1]):int(bboxes[3]), int(bboxes[0]):int(bboxes[2]), :]
@@ -73,6 +78,11 @@ class KeypointExtractor():
                         break    
                 except TypeError:
                     print('No face detected in this image')
+                    shape = [68, 2]
+                    keypoints = -1. * np.ones(shape)                    
+                    break
+                except IndexError:
+                    print('No face detected in this image (empty bounding boxes)')
                     shape = [68, 2]
                     keypoints = -1. * np.ones(shape)                    
                     break

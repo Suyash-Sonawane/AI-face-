@@ -25,9 +25,10 @@ class Preprocesser:
         :return: np.array shape=(68, 2)
         """
         with torch.no_grad():
-            dets = self.predictor.det_net.detect_faces(img_np, 0.97)
+            # Use lower confidence threshold for faster detection
+            dets = self.predictor.det_net.detect_faces(img_np, 0.90)
 
-        if len(dets) == 0:
+        if dets is None or len(dets) == 0:
             return None
         det = dets[0]
 

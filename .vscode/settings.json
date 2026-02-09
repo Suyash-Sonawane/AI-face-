@@ -1,0 +1,9 @@
+{
+    "portsAttributes": {
+        "7860": {
+            "label": "SadTalker Flask App",
+            "onAutoForward": "openPreview"
+        }
+    },
+    "forwardPorts": [7860]
+}
