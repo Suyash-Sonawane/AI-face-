@@ -185,13 +185,28 @@ def prepare_environment():
 
     commit = commit_hash()
 
-    print(f"Python {sys.version}")
-    print(f"Commit hash: {commit}")
+    print(f"[INIT] Python {sys.version}")
+    print(f"[INIT] Commit hash: {commit}")
+
+    # Quick check if all key packages are installed
+    key_packages = ['torch', 'torchvision', 'flask', 'numpy', 'PIL', 'cv2']
+    missing_packages = []
+    for pkg in key_packages:
+        if not is_installed(pkg):
+            missing_packages.append(pkg)
+    
+    if not missing_packages:
+        print("[INIT] All dependencies already installed, skipping installation...")
+        return
+    else:
+        print(f"[INIT] Missing packages: {', '.join(missing_packages)}")
 
     if not is_installed("torch") or not is_installed("torchvision"):
+        print("[INIT] Installing PyTorch (this may take a few minutes)...")
         run(f'"{python}" -m {torch_command}', "Installing torch and torchvision", "Couldn't install torch", live=True)
 
-    run_pip(f"install -r \"{requirements_file}\"", "requirements for SadTalker WebUI (may take longer time in first time)")
+    print("[INIT] Installing requirements...")
+    run_pip(f"install -r \"{requirements_file}\"", "requirements for SadTalker WebUI")
 
     if sys.platform != 'win32' and not is_installed('tts'):
         run_pip(f"install TTS", "install TTS individually in SadTalker, which might not work on windows.")

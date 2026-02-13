@@ -14,7 +14,7 @@ from database import (
     register_user, login_user, logout_user, validate_session,
     create_video_project, update_video_progress, complete_video_project, fail_video_project,
     get_user_videos, get_video_by_id, delete_video, rename_video,
-    get_all_users, get_all_videos, toggle_user_active,
+    get_all_users, get_all_videos, toggle_user_active, delete_user, update_user_role, update_user_email, get_system_stats,
     get_user_preferences, update_user_preferences,
     get_system_config, update_system_config, log_usage_stat
 )
@@ -321,25 +321,145 @@ def api_admin_get_all_videos():
 @require_admin
 def api_admin_get_stats():
     """Get system statistics (admin only)"""
-    users = get_all_users()
-    videos = get_all_videos(10000)  # Get all videos
+    stats = get_system_stats()
+    return jsonify({
+        'success': True,
+        'stats': stats
+    }), 200
+
+
+@api_bp.route('/admin/users/<int:user_id>', methods=['DELETE'])
+@require_admin
+def api_admin_delete_user(user_id):
+    """Delete a user (admin only)"""
+    # Prevent deleting yourself
+    if request.current_user['id'] == user_id:
+        return jsonify({'success': False, 'error': 'Cannot delete your own account'}), 400
     
-    total_users = len(users)
-    total_videos = len(videos)
-    active_users = sum(1 for u in users if u.get('is_active'))
-    completed_videos = sum(1 for v in videos if v.get('status') == 'completed')
-    processing_videos = sum(1 for v in videos if v.get('status') == 'processing')
+    success = delete_user(user_id)
+    
+    if success:
+        return jsonify({
+            'success': True,
+            'message': 'User deleted successfully'
+        }), 200
+    else:
+        return jsonify({'success': False, 'error': 'Failed to delete user'}), 500
+
+
+@api_bp.route('/admin/users/<int:user_id>/role', methods=['POST'])
+@require_admin
+def api_admin_update_user_role(user_id):
+    """Update user role (admin only)"""
+    data = request.get_json() or {}
+    role = data.get('role', 'user')
+    
+    if role not in ['user', 'admin']:
+        return jsonify({'success': False, 'error': 'Invalid role. Must be "user" or "admin"'}), 400
+    
+    # Prevent demoting yourself
+    if request.current_user['id'] == user_id and role != 'admin':
+        return jsonify({'success': False, 'error': 'Cannot demote yourself from admin'}), 400
+    
+    success = update_user_role(user_id, role)
+    
+    if success:
+        return jsonify({
+            'success': True,
+            'message': f"User role updated to {role}"
+        }), 200
+    else:
+        return jsonify({'success': False, 'error': 'Failed to update user role'}), 500
+
+
+@api_bp.route('/admin/users/<int:user_id>/email', methods=['POST'])
+@require_admin
+def api_admin_update_user_email(user_id):
+    """Update user email (admin only)"""
+    data = request.get_json() or {}
+    email = data.get('email', '').strip().lower()
+    
+    if not email:
+        return jsonify({'success': False, 'error': 'Email is required'}), 400
+    
+    success, message = update_user_email(user_id, email)
+    
+    if success:
+        return jsonify({
+            'success': True,
+            'message': message
+        }), 200
+    else:
+        return jsonify({'success': False, 'error': message}), 400
+
+
+@api_bp.route('/admin/users/bulk-delete', methods=['POST'])
+@require_admin
+def api_admin_bulk_delete_users():
+    """Delete multiple users (admin only)"""
+    data = request.get_json() or {}
+    user_ids = data.get('user_ids', [])
+    
+    if not user_ids or not isinstance(user_ids, list):
+        return jsonify({'success': False, 'error': 'user_ids array is required'}), 400
+    
+    # Prevent deleting yourself
+    current_user_id = request.current_user['id']
+    if current_user_id in user_ids:
+        return jsonify({'success': False, 'error': 'Cannot delete your own account from bulk delete'}), 400
+    
+    deleted_count = 0
+    failed_count = 0
+    
+    for user_id in user_ids:
+        if delete_user(user_id):
+            deleted_count += 1
+        else:
+            failed_count += 1
     
     return jsonify({
         'success': True,
-        'stats': {
-            'total_users': total_users,
-            'active_users': active_users,
-            'total_videos': total_videos,
-            'completed_videos': completed_videos,
-            'processing_videos': processing_videos
-        }
+        'message': f"Deleted {deleted_count} users, {failed_count} failed",
+        'deleted_count': deleted_count,
+        'failed_count': failed_count
     }), 200
+
+
+@api_bp.route('/admin/users/export', methods=['GET'])
+@require_admin
+def api_admin_export_users():
+    """Export user data as JSON (admin only)"""
+    import json
+    from flask import make_response
+    
+    users = get_all_users()
+    
+    # Create export data
+    export_data = {
+        'export_date': datetime.now().isoformat(),
+        'total_users': len(users),
+        'users': users
+    }
+    
+    # Create response with proper headers for CORS and download
+    response = make_response(json.dumps(export_data, indent=2, default=str))
+    response.headers['Content-Type'] = 'application/json'
+    response.headers['Content-Disposition'] = 'attachment; filename=sadtalker_users_export.json'
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+    return response
+
+
+@api_bp.route('/admin/users/export', methods=['OPTIONS'])
+def api_admin_export_users_options():
+    """Handle CORS preflight for export endpoint"""
+    from flask import make_response
+    response = make_response()
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+    return response, 200
 
 
 # ==================== USER PREFERENCES ENDPOINTS ====================

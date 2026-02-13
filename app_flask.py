@@ -44,14 +44,21 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(RESULT_DIR, exist_ok=True)
 os.makedirs(PREVIEW_DIR, exist_ok=True)
 
-# Initialize SadTalker once when the app starts
-print("[INIT] Loading SadTalker model...")
-try:
-    sadtalker = SadTalker("checkpoints", "src/config", lazy_load=True)
-    print("[INIT] SadTalker model loaded successfully!")
-except Exception as e:
-    print(f"[INIT ERROR] Failed to load SadTalker: {e}")
-    sadtalker = None
+# Initialize SadTalker once when the app starts (lazy loading for faster startup)
+sadtalker = None
+
+def load_sadtalker_model():
+    """Load SadTalker model on first use for faster startup"""
+    global sadtalker
+    if sadtalker is None:
+        print("[INIT] Loading SadTalker model (first use)...")
+        try:
+            sadtalker = SadTalker("checkpoints", "src/config", lazy_load=True)
+            print("[INIT] SadTalker model loaded successfully!")
+        except Exception as e:
+            print(f"[INIT ERROR] Failed to load SadTalker: {e}")
+            sadtalker = None
+    return sadtalker
 
 # Global dictionary to store processing status
 processing_status = {}
@@ -154,8 +161,9 @@ def generate_video_background(img_path, aud_path, preprocess, still_mode, use_en
         )
         print(f"[DB] Video project created successfully")
         
-        # Check if SadTalker is available
-        if sadtalker is None:
+        # Load SadTalker model on first use
+        model = load_sadtalker_model()
+        if model is None:
             raise Exception("SadTalker model not loaded. Cannot generate video.")
         
         # Start progress simulator
@@ -165,7 +173,7 @@ def generate_video_background(img_path, aud_path, preprocess, still_mode, use_en
         
         # Generate video
         print(f"[PROCESS] Calling SadTalker.test() - this may take several minutes...")
-        video_path = sadtalker.test(
+        video_path = model.test(
             source_image=img_path,
             driven_audio=aud_path,
             preprocess=preprocess,

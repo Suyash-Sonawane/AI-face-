@@ -1702,6 +1702,26 @@
             font-size: 0.85rem;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.3s ease;
+        }
+
+        .users-table th:hover {
+            color: var(--primary-light);
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .users-table th .sort-icon {
+            margin-left: 6px;
+            opacity: 0.5;
+            font-size: 0.7rem;
+        }
+
+        .users-table th.sort-asc .sort-icon,
+        .users-table th.sort-desc .sort-icon {
+            opacity: 1;
+            color: var(--primary);
         }
 
         .users-table td {
@@ -1710,6 +1730,10 @@
 
         .users-table tr:hover td {
             background: rgba(255, 255, 255, 0.02);
+        }
+
+        .users-table tr.inactive {
+            opacity: 0.6;
         }
 
         .user-cell {
@@ -1745,12 +1769,30 @@
             color: var(--gray);
         }
 
+        .user-cell-email.editable {
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .user-cell-email.editable:hover {
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--primary-light);
+        }
+
         .role-badge {
             display: inline-flex;
             padding: 4px 12px;
             border-radius: 20px;
             font-size: 0.75rem;
             font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .role-badge:hover {
+            transform: scale(1.05);
         }
 
         .role-badge.admin {
@@ -1761,6 +1803,32 @@
         .role-badge.user {
             background: rgba(99, 102, 241, 0.2);
             color: var(--primary-light);
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .status-badge:hover {
+            transform: scale(1.05);
+        }
+
+        .status-badge.active {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--success);
+        }
+
+        .status-badge.inactive {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--error);
         }
 
         .video-count {
@@ -1802,6 +1870,11 @@
             color: var(--error);
         }
 
+        .action-btn.edit {
+            background: rgba(6, 182, 212, 0.2);
+            color: var(--accent);
+        }
+
         .action-btn:hover {
             transform: translateY(-2px);
         }
@@ -1832,6 +1905,183 @@
 
         .search-box input::placeholder {
             color: var(--gray);
+        }
+
+        /* Admin Toolbar */
+        .admin-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .admin-toolbar-left {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .admin-toolbar-right {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .bulk-actions {
+            display: none;
+            gap: 12px;
+            align-items: center;
+            padding: 12px 16px;
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 12px;
+        }
+
+        .bulk-actions.active {
+            display: flex;
+        }
+
+        .bulk-actions span {
+            color: var(--light);
+            font-size: 0.9rem;
+        }
+
+        /* User Selection Checkbox */
+        .user-checkbox {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            appearance: none;
+            -webkit-appearance: none;
+        }
+
+        .user-checkbox:checked {
+            background: var(--primary);
+            border-color: var(--primary);
+            position: relative;
+        }
+
+        .user-checkbox:checked::after {
+            content: '✓';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        /* Stats Cards Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card-large {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 24px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card-large:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .stat-card-large .stat-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 12px;
+            font-size: 1.5rem;
+        }
+
+        .stat-card-large .stat-icon.users {
+            background: rgba(99, 102, 241, 0.2);
+            color: var(--primary);
+        }
+
+        .stat-card-large .stat-icon.videos {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--success);
+        }
+
+        .stat-card-large .stat-icon.storage {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--warning);
+        }
+
+        .stat-card-large .stat-icon.activity {
+            background: rgba(236, 72, 153, 0.2);
+            color: var(--secondary);
+        }
+
+        .stat-card-large .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--light);
+            margin-bottom: 4px;
+        }
+
+        .stat-card-large .stat-label {
+            font-size: 0.9rem;
+            color: var(--gray);
+        }
+
+        .stat-card-large .stat-sublabel {
+            font-size: 0.8rem;
+            color: var(--gray);
+            margin-top: 4px;
+            opacity: 0.7;
+        }
+
+        /* Edit Modal */
+        .edit-modal .modal-content {
+            max-width: 450px;
+        }
+
+        .edit-modal .form-group {
+            margin-bottom: 20px;
+        }
+
+        .edit-modal .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            color: var(--light);
+            font-weight: 500;
+        }
+
+        .edit-modal .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            color: var(--light);
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .edit-modal .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.05);
         }
 
         /* Toast Notifications */
@@ -2492,7 +2742,7 @@
                     <h1 class="dashboard-title">
                         <i class="fas fa-shield-alt" style="margin-right: 10px;"></i>Admin Panel
                     </h1>
-                    <p style="color: var(--gray); margin-top: 8px;">Manage users and view all generated videos</p>
+                    <p style="color: var(--gray); margin-top: 8px;">Manage users, monitor system, and view all generated videos</p>
                 </div>
                 <div class="dashboard-stats">
                     <div class="stat-card">
@@ -2506,14 +2756,76 @@
                 </div>
             </div>
 
+            <!-- System Statistics Dashboard -->
+            <div class="card" style="margin-bottom: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="font-size: 1.2rem; font-weight: 600;">
+                        <i class="fas fa-chart-line" style="margin-right: 10px; color: var(--primary);"></i>System Statistics
+                    </h3>
+                    <button class="action-btn view" onclick="refreshAdminStats()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+                <div class="stats-grid" id="adminStatsGrid">
+                    <div class="stat-card-large">
+                        <div class="stat-icon users"><i class="fas fa-users"></i></div>
+                        <div class="stat-value" id="statTotalUsers">0</div>
+                        <div class="stat-label">Total Users</div>
+                        <div class="stat-sublabel"><span id="statActiveUsers">0</span> active</div>
+                    </div>
+                    <div class="stat-card-large">
+                        <div class="stat-icon videos"><i class="fas fa-video"></i></div>
+                        <div class="stat-value" id="statTotalVideos">0</div>
+                        <div class="stat-label">Total Videos</div>
+                        <div class="stat-sublabel"><span id="statCompletedVideos">0</span> completed</div>
+                    </div>
+                    <div class="stat-card-large">
+                        <div class="stat-icon storage"><i class="fas fa-hdd"></i></div>
+                        <div class="stat-value" id="statStorage">0 MB</div>
+                        <div class="stat-label">Storage Used</div>
+                        <div class="stat-sublabel"><span id="statFailedVideos">0</span> failed</div>
+                    </div>
+                    <div class="stat-card-large">
+                        <div class="stat-icon activity"><i class="fas fa-bolt"></i></div>
+                        <div class="stat-value" id="statRecentVideos">0</div>
+                        <div class="stat-label">Last 24h Videos</div>
+                        <div class="stat-sublabel"><span id="statRecentUsers">0</span> new users</div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Users Table -->
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h3 style="font-size: 1.2rem; font-weight: 600;">All Users</h3>
-                    <div class="search-box" style="margin-bottom: 0; width: 300px;">
-                        <i class="fas fa-search"></i>
-                        <input type="text" id="userSearch" placeholder="Search users..." oninput="filterUsers()">
+                    <h3 style="font-size: 1.2rem; font-weight: 600;">
+                        <i class="fas fa-users-cog" style="margin-right: 10px; color: var(--primary);"></i>User Management
+                    </h3>
+                    <div class="admin-toolbar-right">
+                        <button class="action-btn view" onclick="exportUsers()">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                        <div class="search-box" style="margin-bottom: 0; width: 250px;">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="userSearch" placeholder="Search users..." oninput="filterUsers()">
+                        </div>
                     </div>
+                </div>
+
+                <!-- Bulk Actions Toolbar -->
+                <div class="bulk-actions" id="bulkActions">
+                    <span><i class="fas fa-check-square" style="margin-right: 8px;"></i><span id="selectedCount">0</span> selected</span>
+                    <button class="action-btn view" onclick="bulkChangeRole('admin')">
+                        <i class="fas fa-user-shield"></i> Make Admin
+                    </button>
+                    <button class="action-btn view" onclick="bulkChangeRole('user')">
+                        <i class="fas fa-user"></i> Make User
+                    </button>
+                    <button class="action-btn delete" onclick="bulkDeleteUsers()">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                    <button class="action-btn" style="background: rgba(255,255,255,0.1); color: var(--gray);" onclick="clearSelection()">
+                        <i class="fas fa-times"></i> Clear
+                    </button>
                 </div>
 
                 <div id="usersTableContainer">
@@ -2521,9 +2833,12 @@
                         <table class="users-table">
                             <thead>
                                 <tr>
-                                    <th>User</th>
-                                    <th>Role</th>
-                                    <th>Joined</th>
+                                    <th style="width: 40px;"><input type="checkbox" class="user-checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()"></th>
+                                    <th onclick="sortUsers('name')">User <i class="fas fa-sort sort-icon"></i></th>
+                                    <th onclick="sortUsers('email')">Email <i class="fas fa-sort sort-icon"></i></th>
+                                    <th onclick="sortUsers('role')">Role <i class="fas fa-sort sort-icon"></i></th>
+                                    <th onclick="sortUsers('status')">Status <i class="fas fa-sort sort-icon"></i></th>
+                                    <th onclick="sortUsers('created_at')">Joined <i class="fas fa-sort sort-icon"></i></th>
                                     <th>Videos</th>
                                     <th>Actions</th>
                                 </tr>
@@ -2545,10 +2860,50 @@
 
             <!-- All Videos Section -->
             <div class="card" style="margin-top: 24px;">
-                <h3 style="font-size: 1.2rem; font-weight: 600; margin-bottom: 20px;">All Generated Videos</h3>
+                <h3 style="font-size: 1.2rem; font-weight: 600; margin-bottom: 20px;">
+                    <i class="fas fa-film" style="margin-right: 10px; color: var(--primary);"></i>All Generated Videos
+                </h3>
                 <div id="adminVideosGrid" class="videos-grid">
                     <!-- All videos will be loaded here dynamically -->
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Edit Modal -->
+    <div id="userEditModal" class="modal edit-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <i class="fas fa-user-edit" style="color: var(--primary); margin-right: 10px;"></i>
+                    Edit User
+                </div>
+                <button class="modal-close" onclick="closeUserEditModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" id="editUserEmail" class="form-input" placeholder="Enter email">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Role</label>
+                    <select id="editUserRole" class="form-input" style="cursor: pointer;">
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Status</label>
+                    <select id="editUserStatus" class="form-input" style="cursor: pointer;">
+                        <option value="true">Active</option>
+                        <option value="false">Inactive</option>
+                    </select>
+                </div>
+                <button class="auth-submit" onclick="saveUserEdit()">
+                    <i class="fas fa-save"></i> Save Changes
+                </button>
             </div>
         </div>
     </div>
@@ -3130,6 +3485,11 @@
         }
 
         // ==================== ADMIN FUNCTIONS ====================
+        
+        let currentSortField = 'created_at';
+        let currentSortDirection = 'desc';
+        let selectedUsers = new Set();
+        let editingUserId = null;
 
         async function loadAdminData() {
             showLoading('Loading admin data...');
@@ -3166,6 +3526,9 @@
                     document.getElementById('totalVideosCount').textContent = allVideos.length;
                     loadAdminVideos();
                 }
+                
+                // Load stats
+                await refreshAdminStats();
             } catch (error) {
                 console.error('Load admin data error:', error);
                 document.getElementById('usersTableContainer').style.display = 'none';
@@ -3176,13 +3539,93 @@
             }
         }
 
+        async function refreshAdminStats() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/stats`, {
+                    method: 'GET',
+                    headers: getApiHeaders()
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.stats) {
+                    const stats = data.stats;
+                    
+                    // User stats
+                    document.getElementById('statTotalUsers').textContent = stats.users?.total_users || 0;
+                    document.getElementById('statActiveUsers').textContent = stats.users?.active_users || 0;
+                    
+                    // Video stats
+                    document.getElementById('statTotalVideos').textContent = stats.videos?.total_videos || 0;
+                    document.getElementById('statCompletedVideos').textContent = stats.videos?.completed_videos || 0;
+                    document.getElementById('statFailedVideos').textContent = stats.videos?.failed_videos || 0;
+                    
+                    // Storage
+                    const totalBytes = stats.videos?.total_storage || 0;
+                    const totalMB = (totalBytes / (1024 * 1024)).toFixed(1);
+                    document.getElementById('statStorage').textContent = totalMB > 1024 
+                        ? (totalMB / 1024).toFixed(2) + ' GB' 
+                        : totalMB + ' MB';
+                    
+                    // Recent activity
+                    document.getElementById('statRecentVideos').textContent = stats.recent_videos || 0;
+                    document.getElementById('statRecentUsers').textContent = stats.recent_users || 0;
+                }
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+            }
+        }
+
+        function sortUsers(field) {
+            // Toggle direction if clicking same field
+            if (currentSortField === field) {
+                currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortField = field;
+                currentSortDirection = 'asc';
+            }
+            
+            // Update sort icons
+            document.querySelectorAll('.users-table th').forEach(th => {
+                th.classList.remove('sort-asc', 'sort-desc');
+            });
+            
+            const th = document.querySelector(`th[onclick="sortUsers('${field}')"]`);
+            if (th) {
+                th.classList.add(`sort-${currentSortDirection}`);
+            }
+            
+            // Sort users
+            allUsers.sort((a, b) => {
+                let valA = a[field];
+                let valB = b[field];
+                
+                // Handle special fields
+                if (field === 'status') {
+                    valA = a.is_active ? 1 : 0;
+                    valB = b.is_active ? 1 : 0;
+                }
+                
+                if (typeof valA === 'string') {
+                    valA = valA.toLowerCase();
+                    valB = valB.toLowerCase();
+                }
+                
+                if (valA < valB) return currentSortDirection === 'asc' ? -1 : 1;
+                if (valA > valB) return currentSortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+            
+            loadUsersTable();
+        }
+
         function loadUsersTable() {
             const tbody = document.getElementById('usersTableBody');
             
             if (allUsers.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="5" class="empty-state">
+                        <td colspan="8" class="empty-state">
                             <i class="fas fa-users"></i>
                             <p>No users found</p>
                         </td>
@@ -3192,24 +3635,46 @@
             }
             
             tbody.innerHTML = allUsers.map(user => {
-                // Use video_count from database if available, otherwise calculate
                 const userVideoCount = user.video_count !== undefined 
                     ? user.video_count 
                     : (allVideos.filter(v => v.user_id == user.id).length);
                 const date = new Date(user.created_at).toLocaleDateString();
+                const isSelected = selectedUsers.has(user.id.toString());
+                const isCurrentUser = currentUser && currentUser.id === user.id;
+                
                 return `
-                    <tr>
+                    <tr class="${user.is_active ? '' : 'inactive'}" data-user-id="${user.id}">
+                        <td>
+                            <input type="checkbox" class="user-checkbox" 
+                                   ${isSelected ? 'checked' : ''} 
+                                   ${isCurrentUser ? 'disabled' : ''}
+                                   onchange="toggleUserSelection('${user.id}')">
+                        </td>
                         <td>
                             <div class="user-cell">
                                 <div class="user-cell-avatar">${user.name.charAt(0).toUpperCase()}</div>
                                 <div class="user-cell-info">
                                     <span class="user-cell-name">${user.name}</span>
-                                    <span class="user-cell-email">${user.email}</span>
                                 </div>
                             </div>
                         </td>
                         <td>
-                            <span class="role-badge ${user.role}">${user.role}</span>
+                            <span class="user-cell-email editable" onclick="openUserEditModal('${user.id}')" title="Click to edit">
+                                ${user.email}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="role-badge ${user.role}" onclick="toggleUserRole('${user.id}', '${user.role}')" title="Click to change role">
+                                ${user.role}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="status-badge ${user.is_active ? 'active' : 'inactive'}" 
+                                  onclick="toggleUserStatus('${user.id}', ${user.is_active})"
+                                  title="Click to toggle status">
+                                <i class="fas fa-${user.is_active ? 'check-circle' : 'times-circle'}"></i>
+                                ${user.is_active ? 'Active' : 'Inactive'}
+                            </span>
                         </td>
                         <td>${date}</td>
                         <td>
@@ -3218,14 +3683,358 @@
                             </span>
                         </td>
                         <td>
-                            <button class="action-btn view" onclick="showUserVideos('${user.id}')">
-                                <i class="fas fa-eye"></i> View Videos
+                            <button class="action-btn view" onclick="showUserVideos('${user.id}')" title="View Videos">
+                                <i class="fas fa-eye"></i>
                             </button>
+                            <button class="action-btn edit" onclick="openUserEditModal('${user.id}')" title="Edit User">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            ${!isCurrentUser ? `
+                            <button class="action-btn delete" onclick="deleteUser('${user.id}')" title="Delete User">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                            ` : ''}
                         </td>
                     </tr>
                 `;
             }).join('');
+            
+            updateBulkActions();
         }
+
+        // User Selection Functions
+        function toggleUserSelection(userId) {
+            if (selectedUsers.has(userId)) {
+                selectedUsers.delete(userId);
+            } else {
+                selectedUsers.add(userId);
+            }
+            updateBulkActions();
+            updateSelectAllCheckbox();
+        }
+
+        function toggleSelectAll() {
+            const checkbox = document.getElementById('selectAllCheckbox');
+            const visibleUsers = getFilteredUsers();
+            
+            if (checkbox.checked) {
+                visibleUsers.forEach(user => {
+                    if (currentUser && currentUser.id !== user.id) {
+                        selectedUsers.add(user.id.toString());
+                    }
+                });
+            } else {
+                visibleUsers.forEach(user => {
+                    selectedUsers.delete(user.id.toString());
+                });
+            }
+            
+            loadUsersTable();
+            updateBulkActions();
+        }
+
+        function updateSelectAllCheckbox() {
+            const checkbox = document.getElementById('selectAllCheckbox');
+            const visibleUsers = getFilteredUsers();
+            const visibleSelected = visibleUsers.filter(u => selectedUsers.has(u.id.toString()));
+            
+            if (visibleSelected.length === 0) {
+                checkbox.checked = false;
+                checkbox.indeterminate = false;
+            } else if (visibleSelected.length === visibleUsers.length) {
+                checkbox.checked = true;
+                checkbox.indeterminate = false;
+            } else {
+                checkbox.checked = false;
+                checkbox.indeterminate = true;
+            }
+        }
+
+        function getFilteredUsers() {
+            const searchTerm = document.getElementById('userSearch').value.toLowerCase();
+            return allUsers.filter(user => 
+                user.name.toLowerCase().includes(searchTerm) ||
+                user.email.toLowerCase().includes(searchTerm)
+            );
+        }
+
+        function updateBulkActions() {
+            const bulkActions = document.getElementById('bulkActions');
+            const selectedCount = document.getElementById('selectedCount');
+            
+            if (selectedUsers.size > 0) {
+                bulkActions.classList.add('active');
+                selectedCount.textContent = selectedUsers.size;
+            } else {
+                bulkActions.classList.remove('active');
+            }
+        }
+
+        function clearSelection() {
+            selectedUsers.clear();
+            loadUsersTable();
+            updateBulkActions();
+        }
+
+        // User Actions
+        async function toggleUserStatus(userId, currentStatus) {
+            const newStatus = !currentStatus;
+            const action = newStatus ? 'activate' : 'deactivate';
+            
+            if (!confirm(`Are you sure you want to ${action} this user?`)) return;
+            
+            showLoading(`${action.charAt(0).toUpperCase() + action.slice(1)}ing user...`);
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/toggle`, {
+                    method: 'POST',
+                    headers: getApiHeaders(),
+                    body: JSON.stringify({ is_active: newStatus })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('success', 'Success', `User ${action}d successfully`);
+                    await loadAdminData();
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (error) {
+                showToast('error', 'Error', error.message || `Failed to ${action} user`);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function toggleUserRole(userId, currentRole) {
+            const newRole = currentRole === 'admin' ? 'user' : 'admin';
+            
+            if (!confirm(`Change user role to ${newRole}?`)) return;
+            
+            showLoading('Updating role...');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/role`, {
+                    method: 'POST',
+                    headers: getApiHeaders(),
+                    body: JSON.stringify({ role: newRole })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('success', 'Success', 'User role updated successfully');
+                    await loadAdminData();
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (error) {
+                showToast('error', 'Error', error.message || 'Failed to update role');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function deleteUser(userId) {
+            if (!confirm('Are you sure you want to delete this user? This will also delete all their videos and cannot be undone.')) return;
+            
+            showLoading('Deleting user...');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}`, {
+                    method: 'DELETE',
+                    headers: getApiHeaders()
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('success', 'Success', 'User deleted successfully');
+                    selectedUsers.delete(userId.toString());
+                    await loadAdminData();
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (error) {
+                showToast('error', 'Error', error.message || 'Failed to delete user');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // Bulk Actions
+        async function bulkDeleteUsers() {
+            if (selectedUsers.size === 0) return;
+            
+            if (!confirm(`Are you sure you want to delete ${selectedUsers.size} users? This cannot be undone.`)) return;
+            
+            showLoading('Deleting users...');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/users/bulk-delete`, {
+                    method: 'POST',
+                    headers: getApiHeaders(),
+                    body: JSON.stringify({ user_ids: Array.from(selectedUsers).map(id => parseInt(id)) })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('success', 'Success', data.message);
+                    selectedUsers.clear();
+                    await loadAdminData();
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (error) {
+                showToast('error', 'Error', error.message || 'Failed to delete users');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function bulkChangeRole(role) {
+            if (selectedUsers.size === 0) return;
+            
+            if (!confirm(`Change role to ${role} for ${selectedUsers.size} users?`)) return;
+            
+            showLoading('Updating roles...');
+            
+            let successCount = 0;
+            let failCount = 0;
+            
+            for (const userId of selectedUsers) {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/role`, {
+                        method: 'POST',
+                        headers: getApiHeaders(),
+                        body: JSON.stringify({ role })
+                    });
+                    
+                    if (response.ok) successCount++;
+                    else failCount++;
+                } catch (e) {
+                    failCount++;
+                }
+            }
+            
+            hideLoading();
+            showToast('success', 'Complete', `Updated ${successCount} users, ${failCount} failed`);
+            selectedUsers.clear();
+            await loadAdminData();
+        }
+
+        // User Edit Modal
+        function openUserEditModal(userId) {
+            const user = allUsers.find(u => u.id == userId);
+            if (!user) return;
+            
+            editingUserId = userId;
+            document.getElementById('editUserEmail').value = user.email;
+            document.getElementById('editUserRole').value = user.role;
+            document.getElementById('editUserStatus').value = user.is_active ? 'true' : 'false';
+            
+            document.getElementById('userEditModal').classList.add('active');
+        }
+
+        function closeUserEditModal() {
+            document.getElementById('userEditModal').classList.remove('active');
+            editingUserId = null;
+        }
+
+        async function saveUserEdit() {
+            if (!editingUserId) return;
+            
+            const email = document.getElementById('editUserEmail').value.trim();
+            const role = document.getElementById('editUserRole').value;
+            const isActive = document.getElementById('editUserStatus').value === 'true';
+            
+            showLoading('Saving changes...');
+            
+            try {
+                // Update email
+                const emailResponse = await fetch(`${API_BASE_URL}/api/admin/users/${editingUserId}/email`, {
+                    method: 'POST',
+                    headers: getApiHeaders(),
+                    body: JSON.stringify({ email })
+                });
+                
+                const emailData = await emailResponse.json();
+                if (!emailData.success) {
+                    throw new Error(emailData.error || 'Failed to update email');
+                }
+                
+                // Update role
+                await fetch(`${API_BASE_URL}/api/admin/users/${editingUserId}/role`, {
+                    method: 'POST',
+                    headers: getApiHeaders(),
+                    body: JSON.stringify({ role })
+                });
+                
+                // Update status
+                const user = allUsers.find(u => u.id == editingUserId);
+                if (user && user.is_active !== isActive) {
+                    await fetch(`${API_BASE_URL}/api/admin/users/${editingUserId}/toggle`, {
+                        method: 'POST',
+                        headers: getApiHeaders(),
+                        body: JSON.stringify({ is_active: isActive })
+                    });
+                }
+                
+                showToast('success', 'Success', 'User updated successfully');
+                closeUserEditModal();
+                await loadAdminData();
+            } catch (error) {
+                showToast('error', 'Error', error.message || 'Failed to update user');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // Export Users
+        async function exportUsers() {
+            showLoading('Preparing export...');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/admin/users/export`, {
+                    method: 'GET',
+                    headers: getApiHeaders()
+                });
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        throw new Error('Authentication required. Please sign in again.');
+                    }
+                    throw new Error('Failed to export users');
+                }
+                
+                // Get the blob from response
+                const blob = await response.blob();
+                
+                // Create download link
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `sadtalker_users_export_${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                showToast('success', 'Export Complete', 'User data downloaded successfully');
+            } catch (error) {
+                console.error('Export error:', error);
+                showToast('error', 'Export Failed', error.message || 'Failed to export users');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // Close edit modal on outside click
+        document.getElementById('userEditModal').addEventListener('click', function(e) {
+            if (e.target === this) closeUserEditModal();
+        });
 
         function loadAdminVideos() {
             const grid = document.getElementById('adminVideosGrid');
@@ -3286,13 +4095,7 @@
         }
 
         function filterUsers() {
-            const searchTerm = document.getElementById('userSearch').value.toLowerCase();
-            const rows = document.querySelectorAll('#usersTableBody tr');
-            
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(searchTerm) ? '' : 'none';
-            });
+            loadUsersTable();
         }
 
         function showUserVideos(userId) {

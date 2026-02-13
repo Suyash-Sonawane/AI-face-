@@ -818,6 +818,153 @@ def toggle_user_active(user_id: int, is_active: bool) -> bool:
         return False
 
 
+def delete_user(user_id: int) -> bool:
+    """Delete a user and all their data (admin only)"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            # Delete user (cascading will handle related records)
+            cursor.execute("""
+                DELETE FROM users WHERE id = ?
+            """ if DB_TYPE == 'sqlite' else """
+                DELETE FROM users WHERE id = %s
+            """, (user_id,))
+            conn.commit()
+            deleted = cursor.rowcount > 0
+            cursor.close()
+            return deleted
+    except Exception as e:
+        print(f"[DB ERROR] Failed to delete user: {e}")
+        return False
+
+
+def update_user_role(user_id: int, role: str) -> bool:
+    """Update user role (admin only)"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE users SET role = ? WHERE id = ?
+            """ if DB_TYPE == 'sqlite' else """
+                UPDATE users SET role = %s WHERE id = %s
+            """, (role, user_id))
+            conn.commit()
+            cursor.close()
+            return True
+    except Exception as e:
+        print(f"[DB ERROR] Failed to update user role: {e}")
+        return False
+
+
+def update_user_email(user_id: int, email: str) -> Tuple[bool, str]:
+    """Update user email (admin only)"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            # Check if email already exists for another user
+            cursor.execute("""
+                SELECT id FROM users WHERE email = ? AND id != ?
+            """ if DB_TYPE == 'sqlite' else """
+                SELECT id FROM users WHERE email = %s AND id != %s
+            """, (email, user_id))
+            if cursor.fetchone():
+                return False, "Email already in use by another user"
+            
+            cursor.execute("""
+                UPDATE users SET email = ? WHERE id = ?
+            """ if DB_TYPE == 'sqlite' else """
+                UPDATE users SET email = %s WHERE id = %s
+            """, (email, user_id))
+            conn.commit()
+            cursor.close()
+            return True, "Email updated successfully"
+    except Exception as e:
+        print(f"[DB ERROR] Failed to update user email: {e}")
+        return False, f"Database error: {e}"
+
+
+def get_system_stats() -> Dict:
+    """Get comprehensive system statistics (admin only)"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # User statistics
+            cursor.execute("""
+                SELECT COUNT(*) as total_users,
+                       SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active_users,
+                       SUM(CASE WHEN role = 'admin' THEN 1 ELSE 0 END) as admin_count
+                FROM users
+            """ if DB_TYPE == 'sqlite' else """
+                SELECT COUNT(*) as total_users,
+                       SUM(CASE WHEN is_active = TRUE THEN 1 ELSE 0 END) as active_users,
+                       SUM(CASE WHEN role = 'admin' THEN 1 ELSE 0 END) as admin_count
+                FROM users
+            """)
+            row = cursor.fetchone()
+            if DB_TYPE == 'sqlite':
+                user_stats = dict(row)
+            else:
+                user_stats = {'total_users': row[0], 'active_users': row[1], 'admin_count': row[2]}
+            
+            # Video statistics
+            cursor.execute("""
+                SELECT COUNT(*) as total_videos,
+                       SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_videos,
+                       SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing_videos,
+                       SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_videos,
+                       SUM(file_size) as total_storage
+                FROM videos
+            """)
+            row = cursor.fetchone()
+            if DB_TYPE == 'sqlite':
+                video_stats = dict(row)
+            else:
+                video_stats = {
+                    'total_videos': row[0], 'completed_videos': row[1],
+                    'processing_videos': row[2], 'failed_videos': row[3],
+                    'total_storage': row[4] or 0
+                }
+            
+            # Recent activity (last 24 hours)
+            cursor.execute("""
+                SELECT COUNT(*) as recent_videos
+                FROM videos
+                WHERE created_at >= datetime('now', '-1 day')
+            """ if DB_TYPE == 'sqlite' else """
+                SELECT COUNT(*) as recent_videos
+                FROM videos
+                WHERE created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+            """)
+            row = cursor.fetchone()
+            recent_videos = row[0] if DB_TYPE == 'sqlite' else row[0]
+            
+            # Recent users (last 24 hours)
+            cursor.execute("""
+                SELECT COUNT(*) as recent_users
+                FROM users
+                WHERE created_at >= datetime('now', '-1 day')
+            """ if DB_TYPE == 'sqlite' else """
+                SELECT COUNT(*) as recent_users
+                FROM users
+                WHERE created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+            """)
+            row = cursor.fetchone()
+            recent_users = row[0] if DB_TYPE == 'sqlite' else row[0]
+            
+            cursor.close()
+            
+            return {
+                'users': user_stats,
+                'videos': video_stats,
+                'recent_videos': recent_videos,
+                'recent_users': recent_users
+            }
+    except Exception as e:
+        print(f"[DB ERROR] Failed to get system stats: {e}")
+        return {}
+
+
 # ==================== USER PREFERENCES ====================
 
 def get_user_preferences(user_id: int) -> Dict:
