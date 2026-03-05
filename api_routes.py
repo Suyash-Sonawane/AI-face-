@@ -6,18 +6,25 @@ RESTful API endpoints for authentication, videos, audio, and system management
 import os
 import uuid
 import json
+import requests
 from functools import wraps
 from datetime import datetime
-from flask import Blueprint, request, jsonify, session, current_app
+from flask import Blueprint, request, jsonify, session, current_app, redirect
 from werkzeug.utils import secure_filename
 from database import (
-    register_user, login_user, logout_user, validate_session,
+    register_user, login_user, logout_user, validate_session, register_oauth_user, create_session_for_user,
     create_video_project, update_video_progress, complete_video_project, fail_video_project,
     get_user_videos, get_video_by_id, delete_video, rename_video,
     get_all_users, get_all_videos, toggle_user_active, delete_user, update_user_role, update_user_email, get_system_stats,
     get_user_preferences, update_user_preferences,
-    get_system_config, update_system_config, log_usage_stat
+    get_system_config, update_system_config, log_usage_stat,
+    update_user_avatar, update_user_profile
 )
+
+# Google OAuth Configuration - Use environment variables
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', 'http://localhost:5000/api/auth/google/callback')
 
 # Create Blueprint
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -193,6 +200,189 @@ def api_validate_session():
         return jsonify({'success': True, 'valid': False}), 200
 
 
+# ==================== GOOGLE OAUTH ENDPOINTS ====================
+
+@api_bp.route('/auth/google', methods=['GET'])
+def google_login():
+    """Initiate Google OAuth login"""
+    if not GOOGLE_CLIENT_ID:
+        return jsonify({'success': False, 'error': 'Google OAuth not configured'}), 500
+    
+    # Generate state parameter for security
+    import secrets
+    state = secrets.token_urlsafe(32)
+    session['oauth_state'] = state
+    
+    # Build Google OAuth URL
+    google_auth_url = (
+        "https://accounts.google.com/o/oauth2/v2/auth"
+        f"?client_id={GOOGLE_CLIENT_ID}"
+        f"&redirect_uri={GOOGLE_REDIRECT_URI}"
+        "&response_type=code"
+        "&scope=openid%20email%20profile"
+        f"&state={state}"
+        "&access_type=offline"
+        "&prompt=consent"
+    )
+    
+    return jsonify({'success': True, 'auth_url': google_auth_url}), 200
+
+
+@api_bp.route('/auth/google/callback', methods=['GET'])
+def google_callback():
+    """Handle Google OAuth callback"""
+    code = request.args.get('code')
+    state = request.args.get('state')
+    error = request.args.get('error')
+    
+    # Check for errors
+    if error:
+        return redirect(f'/unified_api.html?auth=error&message={error}')
+    
+    if not code:
+        return redirect('/unified_api.html?auth=error&message=No authorization code received')
+    
+    # Verify state parameter
+    stored_state = session.get('oauth_state')
+    if not stored_state or state != stored_state:
+        return redirect('/unified_api.html?auth=error&message=Invalid state parameter')
+    
+    # Clear state from session
+    session.pop('oauth_state', None)
+    
+    try:
+        # Exchange code for access token
+        token_url = "https://oauth2.googleapis.com/token"
+        token_data = {
+            'code': code,
+            'client_id': GOOGLE_CLIENT_ID,
+            'client_secret': GOOGLE_CLIENT_SECRET,
+            'redirect_uri': GOOGLE_REDIRECT_URI,
+            'grant_type': 'authorization_code'
+        }
+        
+        token_response = requests.post(token_url, data=token_data)
+        token_response.raise_for_status()
+        tokens = token_response.json()
+        
+        access_token = tokens.get('access_token')
+        if not access_token:
+            return redirect('/unified_api.html?auth=error&message=Failed to get access token')
+        
+        # Get user info from Google
+        userinfo_url = "https://www.googleapis.com/oauth2/v2/userinfo"
+        headers = {'Authorization': f'Bearer {access_token}'}
+        userinfo_response = requests.get(userinfo_url, headers=headers)
+        userinfo_response.raise_for_status()
+        userinfo = userinfo_response.json()
+        
+        # Extract user data
+        google_id = userinfo.get('id')
+        email = userinfo.get('email')
+        name = userinfo.get('name', email.split('@')[0])
+        avatar_url = userinfo.get('picture')
+        
+        if not google_id or not email:
+            return redirect('/unified_api.html?auth=error&message=Failed to get user info from Google')
+        
+        # Register or get existing user
+        success, message, user = register_oauth_user(email, name, google_id, avatar_url)
+        
+        if not success:
+            return redirect(f'/unified_api.html?auth=error&message={message}')
+        
+        # Create session for user
+        ip_address = request.remote_addr
+        user_agent = request.headers.get('User-Agent', '')[:500]
+        session_token = create_session_for_user(user['id'], ip_address, user_agent)
+        
+        if not session_token:
+            return redirect('/unified_api.html?auth=error&message=Failed to create session')
+        
+        # Redirect back to frontend with session token
+        return redirect(f'/unified_api.html?auth=success&token={session_token}&name={name}&email={email}')
+        
+    except requests.RequestException as e:
+        print(f"[GOOGLE OAUTH ERROR] {e}")
+        return redirect('/unified_api.html?auth=error&message=Google authentication failed')
+    except Exception as e:
+        print(f"[GOOGLE OAUTH ERROR] {e}")
+        return redirect('/unified_api.html?auth=error&message=An error occurred during authentication')
+
+
+@api_bp.route('/auth/google/verify', methods=['POST'])
+def google_verify_token():
+    """Verify Google ID token (for frontend Google Sign-In)"""
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'}), 400
+    
+    id_token = data.get('id_token')
+    if not id_token:
+        return jsonify({'success': False, 'error': 'ID token is required'}), 400
+    
+    try:
+        # Verify the ID token with Google
+        from google.auth.transport import requests as google_requests
+        from google.oauth2 import id_token as google_id_token
+        
+        # Verify token
+        idinfo = google_id_token.verify_oauth2_token(
+            id_token, 
+            google_requests.Request(), 
+            GOOGLE_CLIENT_ID,
+            clock_skew_in_seconds=10
+        )
+        
+        # Check issuer
+        if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
+            return jsonify({'success': False, 'error': 'Invalid token issuer'}), 401
+        
+        # Extract user data
+        google_id = idinfo['sub']
+        email = idinfo.get('email')
+        name = idinfo.get('name', email.split('@')[0])
+        avatar_url = idinfo.get('picture')
+        
+        if not google_id or not email:
+            return jsonify({'success': False, 'error': 'Invalid token data'}), 400
+        
+        # Register or get existing user
+        success, message, user = register_oauth_user(email, name, google_id, avatar_url)
+        
+        if not success:
+            return jsonify({'success': False, 'error': message}), 400
+        
+        # Create session for user
+        ip_address = request.remote_addr
+        user_agent = request.headers.get('User-Agent', '')[:500]
+        session_token = create_session_for_user(user['id'], ip_address, user_agent)
+        
+        if not session_token:
+            return jsonify({'success': False, 'error': 'Failed to create session'}), 500
+        
+        return jsonify({
+            'success': True,
+            'message': 'Login successful',
+            'user': {
+                'id': user['id'],
+                'email': user['email'],
+                'name': user['name'],
+                'role': user['role'],
+                'avatar_url': user.get('avatar_url'),
+                'session_token': session_token
+            }
+        }), 200
+        
+    except ValueError as e:
+        # Invalid token
+        return jsonify({'success': False, 'error': 'Invalid token'}), 401
+    except Exception as e:
+        print(f"[GOOGLE VERIFY ERROR] {e}")
+        return jsonify({'success': False, 'error': 'Token verification failed'}), 500
+
+
 # ==================== VIDEO ENDPOINTS ====================
 
 @api_bp.route('/videos', methods=['GET'])
@@ -228,12 +418,18 @@ def api_get_video(video_id):
     }), 200
 
 
-@api_bp.route('/videos/<video_id>', methods=['DELETE'])
+@api_bp.route('/videos/<path:video_id>', methods=['DELETE'])
 @require_auth
 def api_delete_video(video_id):
     """Delete a video"""
     user = request.current_user
-    success = delete_video(video_id, user['id'])
+    
+    # Clean up video_id - remove .mp4 extension if present
+    clean_video_id = video_id.replace('.mp4', '')
+    
+    print(f"[API DELETE] User {user['id']} attempting to delete video: {clean_video_id}")
+    
+    success = delete_video(clean_video_id, user['id'])
     
     if success:
         return jsonify({'success': True, 'message': 'Video deleted successfully'}), 200
@@ -460,6 +656,111 @@ def api_admin_export_users_options():
     response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type'
     response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
     return response, 200
+
+
+# ==================== USER PROFILE ENDPOINTS ====================
+
+@api_bp.route('/user/avatar', methods=['POST'])
+@require_auth
+def api_update_avatar():
+    """Update user avatar"""
+    user = request.current_user
+    
+    if 'avatar' not in request.files:
+        return jsonify({'success': False, 'error': 'No avatar file provided'}), 400
+    
+    avatar_file = request.files['avatar']
+    
+    if avatar_file.filename == '':
+        return jsonify({'success': False, 'error': 'No file selected'}), 400
+    
+    # Validate file type
+    allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+    file_ext = avatar_file.filename.rsplit('.', 1)[1].lower() if '.' in avatar_file.filename else ''
+    
+    if file_ext not in allowed_extensions:
+        return jsonify({'success': False, 'error': 'Invalid file type. Allowed: png, jpg, jpeg, gif, webp'}), 400
+    
+    try:
+        # Create avatars directory if it doesn't exist
+        avatar_dir = os.path.join('uploads', 'avatars')
+        os.makedirs(avatar_dir, exist_ok=True)
+        
+        # Generate unique filename
+        filename = f"user_{user['id']}_{uuid.uuid4().hex[:8]}.{file_ext}"
+        filepath = os.path.join(avatar_dir, filename)
+        
+        # Save the file
+        avatar_file.save(filepath)
+        
+        # Create URL path for the avatar
+        avatar_url = f"/uploads/avatars/{filename}"
+        
+        # Update database
+        success, message = update_user_avatar(user['id'], avatar_url)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Avatar updated successfully',
+                'avatar_url': avatar_url
+            }), 200
+        else:
+            # Remove file if database update failed
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            return jsonify({'success': False, 'error': message}), 500
+            
+    except Exception as e:
+        print(f"[AVATAR UPLOAD ERROR] {e}")
+        return jsonify({'success': False, 'error': 'Failed to upload avatar'}), 500
+
+
+@api_bp.route('/user/profile', methods=['PUT'])
+@require_auth
+def api_update_profile():
+    """Update user profile (name and/or avatar URL)"""
+    user = request.current_user
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'}), 400
+    
+    name = data.get('name')
+    avatar_url = data.get('avatar_url')
+    
+    success, message = update_user_profile(user['id'], name, avatar_url)
+    
+    if success:
+        return jsonify({
+            'success': True,
+            'message': message,
+            'user': {
+                'id': user['id'],
+                'name': name if name else user['name'],
+                'avatar_url': avatar_url if avatar_url else user.get('avatar_url')
+            }
+        }), 200
+    else:
+        return jsonify({'success': False, 'error': message}), 400
+
+
+@api_bp.route('/user/profile', methods=['GET'])
+@require_auth
+def api_get_user_profile():
+    """Get current user profile info"""
+    user = request.current_user
+    
+    return jsonify({
+        'success': True,
+        'user': {
+            'id': user['id'],
+            'email': user['email'],
+            'name': user['name'],
+            'role': user['role'],
+            'avatar_url': user.get('avatar_url')
+        }
+    }), 200
 
 
 # ==================== USER PREFERENCES ENDPOINTS ====================

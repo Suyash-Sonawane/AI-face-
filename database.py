@@ -73,11 +73,13 @@ def init_database():
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     email VARCHAR(255) UNIQUE NOT NULL,
-                    password_hash VARCHAR(255) NOT NULL,
+                    password_hash VARCHAR(255) DEFAULT '',
                     name VARCHAR(255) NOT NULL,
                     role VARCHAR(50) DEFAULT 'user',
                     avatar_url VARCHAR(500),
                     is_active BOOLEAN DEFAULT 1,
+                    auth_provider VARCHAR(50) DEFAULT 'local',
+                    google_id VARCHAR(255) UNIQUE,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     last_login TIMESTAMP NULL
@@ -86,11 +88,13 @@ def init_database():
                 CREATE TABLE IF NOT EXISTS users (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     email VARCHAR(255) UNIQUE NOT NULL,
-                    password_hash VARCHAR(255) NOT NULL,
+                    password_hash VARCHAR(255) DEFAULT '',
                     name VARCHAR(255) NOT NULL,
                     role VARCHAR(50) DEFAULT 'user',
                     avatar_url VARCHAR(500),
                     is_active BOOLEAN DEFAULT TRUE,
+                    auth_provider VARCHAR(50) DEFAULT 'local',
+                    google_id VARCHAR(255) UNIQUE,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     last_login TIMESTAMP NULL
@@ -343,6 +347,67 @@ def init_database():
         return False
 
 
+def migrate_database():
+    """Migrate existing database to add new columns"""
+    print(f"[DB] Checking for database migrations...")
+    
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Check if auth_provider column exists in users table
+            try:
+                if DB_TYPE == 'sqlite':
+                    cursor.execute("PRAGMA table_info(users)")
+                    columns = [col[1] for col in cursor.fetchall()]
+                    if 'auth_provider' not in columns:
+                        print("[DB] Adding auth_provider column to users table...")
+                        cursor.execute("ALTER TABLE users ADD COLUMN auth_provider VARCHAR(50) DEFAULT 'local'")
+                        cursor.execute("ALTER TABLE users ADD COLUMN google_id VARCHAR(255) UNIQUE")
+                        conn.commit()
+                        print("[DB] Migration completed: added auth_provider and google_id columns")
+                else:
+                    # MySQL - check if column exists
+                    cursor.execute("""
+                        SELECT COUNT(*) FROM information_schema.columns 
+                        WHERE table_name = 'users' AND column_name = 'auth_provider'
+                    """)
+                    if cursor.fetchone()[0] == 0:
+                        print("[DB] Adding auth_provider column to users table...")
+                        cursor.execute("ALTER TABLE users ADD COLUMN auth_provider VARCHAR(50) DEFAULT 'local'")
+                        cursor.execute("ALTER TABLE users ADD COLUMN google_id VARCHAR(255) UNIQUE")
+                        conn.commit()
+                        print("[DB] Migration completed: added auth_provider and google_id columns")
+                    else:
+                        print("[DB] Columns already exist, skipping migration")
+                        
+            except Exception as e:
+                print(f"[DB WARNING] Migration check failed: {e}")
+            
+            # Also update password_hash to allow empty strings for OAuth users
+            try:
+                if DB_TYPE == 'mysql':
+                    # Check if password_hash has NOT NULL constraint
+                    cursor.execute("""
+                        SELECT is_nullable, column_default 
+                        FROM information_schema.columns 
+                        WHERE table_name = 'users' AND column_name = 'password_hash'
+                    """)
+                    row = cursor.fetchone()
+                    if row and row[0] == 'NO' and (row[1] is None or row[1] == ''):
+                        print("[DB] Updating password_hash to allow NULL/empty values...")
+                        cursor.execute("ALTER TABLE users MODIFY COLUMN password_hash VARCHAR(255) DEFAULT ''")
+                        conn.commit()
+                        print("[DB] Migration completed: password_hash can now be empty")
+            except Exception as e:
+                print(f"[DB WARNING] Password hash migration failed: {e}")
+                
+            cursor.close()
+            
+    except Exception as e:
+        print(f"[DB ERROR] Migration failed: {e}")
+
+
 # ==================== USER AUTHENTICATION ====================
 
 def hash_password(password: str) -> str:
@@ -372,12 +437,12 @@ def register_user(email: str, password: str, name: str) -> Tuple[bool, str, Opti
             # Hash password and insert user
             password_hash = hash_password(password)
             cursor.execute("""
-                INSERT INTO users (email, password_hash, name, role)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO users (email, password_hash, name, role, auth_provider)
+                VALUES (?, ?, ?, ?, ?)
             """ if DB_TYPE == 'sqlite' else """
-                INSERT INTO users (email, password_hash, name, role)
-                VALUES (%s, %s, %s, %s)
-            """, (email, password_hash, name, 'user'))
+                INSERT INTO users (email, password_hash, name, role, auth_provider)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (email, password_hash, name, 'user', 'local'))
             
             user_id = cursor.lastrowid
             
@@ -399,6 +464,76 @@ def register_user(email: str, password: str, name: str) -> Tuple[bool, str, Opti
         return False, f"Registration failed: {e}", None
 
 
+def register_oauth_user(email: str, name: str, google_id: str, avatar_url: str = None) -> Tuple[bool, str, Optional[Dict]]:
+    """Register or get existing OAuth user (Google)"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Check if user exists by google_id
+            cursor.execute(
+                "SELECT id, email, name, role, avatar_url, is_active FROM users WHERE google_id = ?" if DB_TYPE == 'sqlite' else 
+                "SELECT id, email, name, role, avatar_url, is_active FROM users WHERE google_id = %s",
+                (google_id,)
+            )
+            row = cursor.fetchone()
+            
+            if row:
+                user = dict(row) if DB_TYPE == 'sqlite' else {
+                    'id': row[0], 'email': row[1], 'name': row[2],
+                    'role': row[3], 'avatar_url': row[4], 'is_active': row[5]
+                }
+                if not user['is_active']:
+                    return False, "Account is deactivated", None
+                return True, "User found", user
+            
+            # Check if email exists with local auth
+            cursor.execute(
+                "SELECT id FROM users WHERE email = ? AND auth_provider = 'local'" if DB_TYPE == 'sqlite' else 
+                "SELECT id FROM users WHERE email = %s AND auth_provider = 'local'",
+                (email,)
+            )
+            if cursor.fetchone():
+                return False, "Email already registered with password. Please sign in with password.", None
+            
+            # Create new OAuth user
+            cursor.execute("""
+                INSERT INTO users (email, password_hash, name, role, avatar_url, auth_provider, google_id)
+                VALUES (?, NULL, ?, ?, ?, ?, ?)
+            """ if DB_TYPE == 'sqlite' else """
+                INSERT INTO users (email, password_hash, name, role, avatar_url, auth_provider, google_id)
+                VALUES (%s, NULL, %s, %s, %s, %s, %s)
+            """, (email, name, 'user', avatar_url, 'google', google_id))
+            
+            user_id = cursor.lastrowid
+            
+            # Create default preferences for user
+            cursor.execute("""
+                INSERT INTO user_preferences (user_id)
+                VALUES (?)
+            """ if DB_TYPE == 'sqlite' else """
+                INSERT INTO user_preferences (user_id)
+                VALUES (%s)
+            """, (user_id,))
+            
+            conn.commit()
+            cursor.close()
+            
+            user = {
+                'id': user_id,
+                'email': email,
+                'name': name,
+                'role': 'user',
+                'avatar_url': avatar_url,
+                'is_active': True
+            }
+            
+            return True, "User registered successfully", user
+            
+    except Exception as e:
+        return False, f"OAuth registration failed: {e}", None
+
+
 def login_user(email: str, password: str, ip_address: str = None, user_agent: str = None) -> Tuple[bool, str, Optional[Dict]]:
     """Authenticate user and create session"""
     try:
@@ -407,10 +542,10 @@ def login_user(email: str, password: str, ip_address: str = None, user_agent: st
             
             # Get user by email
             cursor.execute("""
-                SELECT id, email, password_hash, name, role, is_active, avatar_url
+                SELECT id, email, password_hash, name, role, is_active, avatar_url, auth_provider
                 FROM users WHERE email = ?
             """ if DB_TYPE == 'sqlite' else """
-                SELECT id, email, password_hash, name, role, is_active, avatar_url
+                SELECT id, email, password_hash, name, role, is_active, avatar_url, auth_provider
                 FROM users WHERE email = %s
             """, (email,))
             
@@ -420,14 +555,18 @@ def login_user(email: str, password: str, ip_address: str = None, user_agent: st
             
             user = dict(row) if DB_TYPE == 'sqlite' else {
                 'id': row[0], 'email': row[1], 'password_hash': row[2],
-                'name': row[3], 'role': row[4], 'is_active': row[5], 'avatar_url': row[6]
+                'name': row[3], 'role': row[4], 'is_active': row[5], 'avatar_url': row[6], 'auth_provider': row[7]
             }
             
             if not user['is_active']:
                 return False, "Account is deactivated", None
             
+            # Check if user is OAuth user
+            if user['auth_provider'] != 'local':
+                return False, f"This account uses {user['auth_provider']} sign-in. Please use that method.", None
+            
             # Verify password
-            if hash_password(password) != user['password_hash']:
+            if not user['password_hash'] or hash_password(password) != user['password_hash']:
                 return False, "Invalid email or password", None
             
             # Update last login
@@ -467,6 +606,42 @@ def login_user(email: str, password: str, ip_address: str = None, user_agent: st
             
     except Exception as e:
         return False, f"Login failed: {e}", None
+
+
+def create_session_for_user(user_id: int, ip_address: str = None, user_agent: str = None) -> str:
+    """Create a session token for a user (used for OAuth login)"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Update last login
+            cursor.execute("""
+                UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?
+            """ if DB_TYPE == 'sqlite' else """
+                UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = %s
+            """, (user_id,))
+            
+            # Create session token
+            session_token = generate_session_token()
+            from datetime import timedelta
+            expires_at = datetime.now() + timedelta(days=7)  # 7 day session
+            
+            cursor.execute("""
+                INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address, user_agent)
+                VALUES (?, ?, ?, ?, ?)
+            """ if DB_TYPE == 'sqlite' else """
+                INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address, user_agent)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (user_id, session_token, expires_at, ip_address, user_agent))
+            
+            conn.commit()
+            cursor.close()
+            
+            return session_token
+            
+    except Exception as e:
+        print(f"[DB ERROR] Failed to create session: {e}")
+        return None
 
 
 def validate_session(session_token: str) -> Tuple[bool, Optional[Dict]]:
@@ -691,14 +866,45 @@ def delete_video(video_id: str, user_id: int) -> bool:
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
+
+            # Handle video_id with or without .mp4 extension
+            # Strip extension for consistent lookup since DB may store with or without
+            video_id_clean = video_id.replace('.mp4', '')
+            video_id_with_ext = video_id_clean + '.mp4'
+
+            # First check if video exists and get its info (try both with and without extension)
+            cursor.execute("""
+                SELECT id, video_id, result_path FROM videos
+                WHERE (video_id = ? OR video_id = ?) AND user_id = ?
+            """ if DB_TYPE == 'sqlite' else """
+                SELECT id, video_id, result_path FROM videos
+                WHERE (video_id = %s OR video_id = %s) AND user_id = %s
+            """, (video_id_clean, video_id_with_ext, user_id))
+
+            row = cursor.fetchone()
+            if not row:
+                print(f"[DB] Video not found: {video_id} (tried: {video_id_clean}, {video_id_with_ext}) for user {user_id}")
+                cursor.close()
+                return False
+
+            # Get the actual video_id from the database for deletion
+            actual_video_id = row[1]
+
+            # Delete the video record using the actual ID from DB
             cursor.execute("""
                 DELETE FROM videos WHERE video_id = ? AND user_id = ?
             """ if DB_TYPE == 'sqlite' else """
                 DELETE FROM videos WHERE video_id = %s AND user_id = %s
-            """, (video_id, user_id))
+            """, (actual_video_id, user_id))
             conn.commit()
             deleted = cursor.rowcount > 0
             cursor.close()
+
+            if deleted:
+                print(f"[DB] Video deleted successfully: {actual_video_id}")
+            else:
+                print(f"[DB] Video deletion failed (no rows affected): {actual_video_id}")
+
             return deleted
     except Exception as e:
         print(f"[DB ERROR] Failed to delete video: {e}")
@@ -734,7 +940,7 @@ def get_all_users() -> List[Dict]:
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT id, email, name, role, is_active, created_at, last_login,
+                SELECT id, email, name, role, is_active, created_at, last_login, avatar_url,
                        (SELECT COUNT(*) FROM videos WHERE user_id = users.id) as video_count
                 FROM users ORDER BY created_at DESC
             """)
@@ -749,7 +955,7 @@ def get_all_users() -> List[Dict]:
                         'id': row[0], 'email': row[1], 'name': row[2],
                         'role': row[3], 'is_active': row[4],
                         'created_at': row[5], 'last_login': row[6],
-                        'video_count': row[7]
+                        'avatar_url': row[7], 'video_count': row[8]
                     })
             cursor.close()
             return users
@@ -880,6 +1086,60 @@ def update_user_email(user_id: int, email: str) -> Tuple[bool, str]:
             return True, "Email updated successfully"
     except Exception as e:
         print(f"[DB ERROR] Failed to update user email: {e}")
+        return False, f"Database error: {e}"
+
+
+def update_user_avatar(user_id: int, avatar_url: str) -> Tuple[bool, str]:
+    """Update user avatar URL"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE users SET avatar_url = ? WHERE id = ?
+            """ if DB_TYPE == 'sqlite' else """
+                UPDATE users SET avatar_url = %s WHERE id = %s
+            """, (avatar_url, user_id))
+            conn.commit()
+            cursor.close()
+            return True, "Avatar updated successfully"
+    except Exception as e:
+        print(f"[DB ERROR] Failed to update user avatar: {e}")
+        return False, f"Database error: {e}"
+
+
+def update_user_profile(user_id: int, name: str = None, avatar_url: str = None) -> Tuple[bool, str]:
+    """Update user profile (name and/or avatar)"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            updates = []
+            params = []
+            
+            if name is not None:
+                updates.append("name = ?" if DB_TYPE == 'sqlite' else "name = %s")
+                params.append(name)
+            
+            if avatar_url is not None:
+                updates.append("avatar_url = ?" if DB_TYPE == 'sqlite' else "avatar_url = %s")
+                params.append(avatar_url)
+            
+            if not updates:
+                return False, "No fields to update"
+            
+            params.append(user_id)
+            
+            query = f"""
+                UPDATE users SET {', '.join(updates)}
+                WHERE id = {'?' if DB_TYPE == 'sqlite' else '%s'}
+            """
+            
+            cursor.execute(query, tuple(params))
+            conn.commit()
+            cursor.close()
+            return True, "Profile updated successfully"
+    except Exception as e:
+        print(f"[DB ERROR] Failed to update user profile: {e}")
         return False, f"Database error: {e}"
 
 

@@ -46,4 +46,28 @@ REM Open Chrome after server is confirmed ready
 echo [SETUP] Opening browser...
 start chrome http://127.0.0.1:7860
 
+echo.
+echo ================================================
+echo  STARTING PUBLIC TUNNEL
+echo ================================================
+echo.
+echo Your permanent public URL:
+echo https://sadtalker-7860.inc1.devtunnels.ms
+echo.
+echo Starting tunnel in new window...
+echo.
+
+REM Start devtunnel in a new window
+call devtunnel port create sadtalker -p 7860 2>nul || echo Tunnel port already configured
+start "SadTalker Public Tunnel" cmd /k "echo Your permanent URL: https://sadtalker-7860.inc1.devtunnels.ms & echo. & devtunnel host sadtalker"
+
+echo.
+echo [SUCCESS] SadTalker is running!
+echo [SUCCESS] Public tunnel is starting...
+echo.
+echo Local:  http://127.0.0.1:7860
+echo Public: https://sadtalker-7860.inc1.devtunnels.ms
+echo.
+
 pause
+

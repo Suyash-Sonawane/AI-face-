@@ -170,3 +170,14 @@ start.sh
 
 # Mac
 .DS_Store
+
+# Project-specific ignores
+venv310/
+static/results/
+static/previews/
+static/temp/
+uploads/
+!uploads/.gitkeep
+sadtalker.db
+.vscode/
+tempCodeRunnerFile.*

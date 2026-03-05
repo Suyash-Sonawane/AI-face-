@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SadTalker - AI Talking Head Generator</title>
+    <title>AI Faces - AI Talking Head Generator</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -2875,7 +2875,7 @@
     <header class="header">
         <div class="logo" onclick="showHomeView()">
             <i class="fas fa-robot"></i>
-            <span>SadTalker</span>
+            <span>AI Faces</span>
         </div>
         <div class="header-nav" id="headerNav">
             <!-- Theme Toggle Button -->
@@ -2891,7 +2891,7 @@
     <div id="authView" class="view-section">
         <div class="container">
             <div class="hero">
-                <h1>Welcome to SadTalker</h1>
+                <h1>Welcome to AI Faces</h1>
                 <p>Sign in to create amazing AI-powered talking head videos</p>
             </div>
 
@@ -4106,7 +4106,7 @@
         function showAuthView() {
             hideAllViews();
             document.getElementById('authView').classList.add('active');
-            document.title = 'Sign In - SadTalker';
+            document.title = 'Sign In - AI Faces';
         }
 
         function showHomeView() {
@@ -4116,7 +4116,7 @@
             }
             hideAllViews();
             document.getElementById('homeView').classList.add('active');
-            document.title = 'AI Talking Head Generator - SadTalker';
+            document.title = 'AI Talking Head Generator - AI Faces';
             updateUI();
         }
 
@@ -4127,7 +4127,7 @@
             }
             hideAllViews();
             document.getElementById('dashboardView').classList.add('active');
-            document.title = 'My Videos - SadTalker';
+            document.title = 'My Videos - AI Faces';
             await loadUserVideos();
             updateUI();
         }
@@ -4139,7 +4139,7 @@
             }
             hideAllViews();
             document.getElementById('adminView').classList.add('active');
-            document.title = 'Admin Panel - SadTalker';
+            document.title = 'Admin Panel - AI Faces';
             await loadAdminData();
             updateUI();
         }

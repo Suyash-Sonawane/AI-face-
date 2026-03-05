@@ -18,7 +18,7 @@ from flask_cors import CORS
 from datetime import datetime
 
 # Import our new modules
-from database import init_database, create_video_project, update_video_progress, complete_video_project, fail_video_project
+from database import init_database, migrate_database, create_video_project, update_video_progress, complete_video_project, fail_video_project
 from api_routes import api_bp
 
 # Performance optimizations for PyTorch
@@ -37,12 +37,20 @@ app.register_blueprint(api_bp)
 
 # Directory configuration
 UPLOAD_DIR = "uploads"
+AVATAR_DIR = "uploads/avatars"
 RESULT_DIR = "static/results"
 PREVIEW_DIR = "static/previews"
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(AVATAR_DIR, exist_ok=True)
 os.makedirs(RESULT_DIR, exist_ok=True)
 os.makedirs(PREVIEW_DIR, exist_ok=True)
+
+# Serve avatar files
+@app.route('/uploads/avatars/<path:filename>')
+def serve_avatar(filename):
+    """Serve avatar images"""
+    return send_from_directory(AVATAR_DIR, filename)
 
 # Initialize SadTalker once when the app starts (lazy loading for faster startup)
 sadtalker = None
@@ -68,7 +76,7 @@ processing_status = {}
 def generate_video_background(img_path, aud_path, preprocess, still_mode, use_enhancer, 
                                batch_size, size, pose_style, exp_scale, use_ref_video, 
                                ref_vid_path, ref_info, use_idle_mode, length_of_audio, 
-                               use_blink, final_name, user_id=None, settings=None):
+                               use_blink, final_name, user_id=None, settings=None, use_video_source=False):
     """Background thread for video generation with comprehensive logging"""
     
     stop_event = threading.Event()
@@ -81,7 +89,8 @@ def generate_video_background(img_path, aud_path, preprocess, still_mode, use_en
     print(f"[INFO] User ID: {user_id}")
     print(f"[INFO] Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*70}")
-    print(f"[INPUT] Source Image: {img_path}")
+    print(f"[INPUT] Source: {img_path}")
+    print(f"[INPUT] Source Type: {'Video' if use_video_source else 'Image'}")
     print(f"[INPUT] Audio File: {aud_path}")
     print(f"[INPUT] Reference Video: {ref_vid_path if use_ref_video else 'None'}")
     print(f"{'='*70}")
@@ -188,7 +197,8 @@ def generate_video_background(img_path, aud_path, preprocess, still_mode, use_en
             ref_info=ref_info,
             use_idle_mode=use_idle_mode,
             length_of_audio=length_of_audio,
-            use_blink=use_blink
+            use_blink=use_blink,
+            use_video_source=use_video_source
         )
         
         print(f"[PROCESS] SadTalker processing complete!")
@@ -279,20 +289,40 @@ def index():
             print(f"[AUTH] No valid session - video will be created without user association")
         
         # Handle file uploads
-        if 'image' not in request.files:
-            print("[ERROR] No image file in request")
-            return redirect(request.url)
+        use_video_source = 'use_video_source' in request.form
         
-        image = request.files["image"]
-        if image.filename == '':
-            print("[ERROR] Empty image filename")
-            return redirect(request.url)
-        
-        # Save uploaded files
-        img_filename = secure_filename(image.filename)
-        img_path = os.path.join(UPLOAD_DIR, img_filename)
-        image.save(img_path)
-        print(f"[UPLOAD] Image saved: {img_path}")
+        if use_video_source:
+            # Video source mode
+            if 'source_video' not in request.files:
+                print("[ERROR] No source video file in request")
+                return redirect(request.url)
+            
+            source_video = request.files["source_video"]
+            if source_video.filename == '':
+                print("[ERROR] Empty source video filename")
+                return redirect(request.url)
+            
+            # Save source video
+            vid_filename = secure_filename(source_video.filename)
+            img_path = os.path.join(UPLOAD_DIR, vid_filename)
+            source_video.save(img_path)
+            print(f"[UPLOAD] Source video saved: {img_path}")
+        else:
+            # Image source mode
+            if 'image' not in request.files:
+                print("[ERROR] No image file in request")
+                return redirect(request.url)
+            
+            image = request.files["image"]
+            if image.filename == '':
+                print("[ERROR] Empty image filename")
+                return redirect(request.url)
+            
+            # Save uploaded files
+            img_filename = secure_filename(image.filename)
+            img_path = os.path.join(UPLOAD_DIR, img_filename)
+            image.save(img_path)
+            print(f"[UPLOAD] Image saved: {img_path}")
         
         # Handle audio
         aud_path = None
@@ -327,6 +357,7 @@ def index():
         use_blink = "use_blink" in request.form
         use_ref_video = "use_ref_video" in request.form
         ref_info = request.form.get("ref_info", "pose")
+        use_video_source = "use_video_source" in request.form
         
         print(f"[SETTINGS] Preprocess: {preprocess}")
         print(f"[SETTINGS] Still Mode: {still_mode}")
@@ -361,7 +392,8 @@ def index():
             'length_of_audio': length_of_audio,
             'use_blink': use_blink,
             'use_ref_video': use_ref_video,
-            'ref_info': ref_info
+            'ref_info': ref_info,
+            'use_video_source': use_video_source
         }
         
         # Start background generation
@@ -372,7 +404,7 @@ def index():
                 img_path, aud_path, preprocess, still_mode, use_enhancer,
                 batch_size, size, pose_style, exp_scale, use_ref_video,
                 ref_vid_path, ref_info, use_idle_mode, length_of_audio,
-                use_blink, final_name, user_id, settings
+                use_blink, final_name, user_id, settings, use_video_source
             )
         )
         thread.start()
@@ -490,6 +522,7 @@ if __name__ == "__main__":
     # Initialize database
     print("\n[INIT] Initializing database...")
     if init_database():
+        migrate_database()
         print("[INIT] Database ready!")
     else:
         print("[INIT WARNING] Database initialization had issues. Some features may not work.")

@@ -90,7 +90,8 @@ class SadTalker():
         ref_info = None,
         use_idle_mode = False,
         length_of_audio = 0, use_blink=True,
-        result_dir='./results/'):
+        result_dir='./results/',
+        use_video_source=False):
 
         self.sadtalker_paths = init_path(self.checkpoint_path, self.config_path, size, False, preprocess)
         print(self.sadtalker_paths)
@@ -109,6 +110,11 @@ class SadTalker():
         print(source_image)
         pic_path = os.path.join(input_dir, os.path.basename(source_image)) 
         shutil.move(source_image, input_dir)
+        
+        # Check if source is a video file
+        is_video_source = use_video_source or pic_path.lower().endswith(('.mp4', '.mov', '.avi', '.webm', '.mkv'))
+        if is_video_source:
+            print(f"[INFO] Source is a video file: {pic_path}")
 
         if driven_audio is not None and os.path.isfile(driven_audio):
             audio_path = os.path.join(input_dir, os.path.basename(driven_audio))  
@@ -183,7 +189,13 @@ class SadTalker():
 
         #coeff2video
         data = get_facerender_data(coeff_path, crop_pic_path, first_coeff_path, audio_path, batch_size, still_mode=still_mode, preprocess=preprocess, size=size, expression_scale = exp_scale)
-        return_path = self.animate_from_coeff.generate(data, save_dir,  pic_path, crop_info, enhancer='gfpgan' if use_enhancer else None, preprocess=preprocess, img_size=size)
+        
+        # Pass is_video_source flag to animate_from_coeff.generate
+        return_path = self.animate_from_coeff.generate(data, save_dir,  pic_path, crop_info, 
+                                                        enhancer='gfpgan' if use_enhancer else None, 
+                                                        preprocess=preprocess, 
+                                                        img_size=size,
+                                                        is_video_source=is_video_source)
         video_name = data['video_name']
         print(f'The generated video is named {video_name} in {save_dir}')
 
