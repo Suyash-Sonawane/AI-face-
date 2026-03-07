@@ -20,6 +20,7 @@ gradio
 gfpgan
 av
 safetensors
-insightface==0.7.3
-onnxruntime-gpu==1.17.1
+mediapipe==0.10.11
+onnxruntime==1.17.1
 opencv-python==4.8.1.78
+scikit-image==0.19.3

@@ -1,127 +1,266 @@
 """
-Face Swap Module for SadTalker
-Implements video face swapping using InsightFace and ONNX Runtime
-Based on the HuggingFace space: tonyassi/video-face-swap
+Face Swap Module for SadTalker - CPU Only Version
+Uses MediaPipe for face detection and OpenCV for face swapping
+No compilation required - works on CPU
 """
 
 import os
 import cv2
 import numpy as np
-import onnxruntime as ort
-import insightface
-from insightface.app import FaceAnalysis
 import imageio
 import imageio_ffmpeg
 from tqdm import tqdm
 import uuid
 import threading
-import shutil
+import mediapipe as mp
+from skimage import transform as sktransform
+
+# MediaPipe face detection
+mp_face_detection = mp.solutions.face_detection
+mp_face_mesh = mp.solutions.face_mesh
 
 # Global variables for model caching
-face_analyser = None
-face_swapper = None
+face_detector = None
+face_mesh = None
 model_lock = threading.Lock()
 
-# Model paths
-MODELS_DIR = "checkpoints/face_swap"
-FACE_SWAPPER_MODEL = os.path.join(MODELS_DIR, "inswapper_128.onnx")
-
-# Model download URLs
-FACE_SWAPPER_URL = "https://github.com/facefusion/facefusion-assets/releases/download/models/inswapper_128.onnx"
-
-def ensure_model_exists():
-    """Download face swap model if not exists"""
-    os.makedirs(MODELS_DIR, exist_ok=True)
-    
-    if not os.path.exists(FACE_SWAPPER_MODEL):
-        print(f"[Face Swap] Downloading model to {FACE_SWAPPER_MODEL}...")
-        import urllib.request
-        try:
-            urllib.request.urlretrieve(FACE_SWAPPER_URL, FACE_SWAPPER_MODEL)
-            print("[Face Swap] Model downloaded successfully!")
-        except Exception as e:
-            print(f"[Face Swap] Error downloading model: {e}")
-            return False
-    return True
-
-def get_face_analyser():
-    """Get or create face analyser instance"""
-    global face_analyser
-    if face_analyser is None:
+def get_face_detector():
+    """Get or create face detector"""
+    global face_detector
+    if face_detector is None:
         with model_lock:
-            if face_analyser is None:
-                print("[Face Swap] Loading face analyser...")
-                face_analyser = FaceAnalysis(name='buffalo_l', root=MODELS_DIR, providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
-                face_analyser.prepare(ctx_id=0, det_size=(640, 640))
-                print("[Face Swap] Face analyser loaded!")
-    return face_analyser
+            if face_detector is None:
+                print("[Face Swap] Loading face detector...")
+                face_detector = mp_face_detection.FaceDetection(
+                    model_selection=1,  # 0=short range, 1=full range
+                    min_detection_confidence=0.5
+                )
+                print("[Face Swap] Face detector loaded!")
+    return face_detector
 
-def get_face_swapper():
-    """Get or create face swapper instance"""
-    global face_swapper
-    if face_swapper is None:
+def get_face_mesh():
+    """Get or create face mesh for landmarks"""
+    global face_mesh
+    if face_mesh is None:
         with model_lock:
-            if face_swapper is None:
-                if not ensure_model_exists():
-                    return None
-                print("[Face Swap] Loading face swapper model...")
-                face_swapper = insightface.model_zoo.get_model(FACE_SWAPPER_MODEL, providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
-                print("[Face Swap] Face swapper loaded!")
-    return face_swapper
+            if face_mesh is None:
+                print("[Face Swap] Loading face mesh...")
+                face_mesh = mp_face_mesh.FaceMesh(
+                    static_image_mode=False,
+                    max_num_faces=1,
+                    refine_landmarks=True,
+                    min_detection_confidence=0.5,
+                    min_tracking_confidence=0.5
+                )
+                print("[Face Swap] Face mesh loaded!")
+    return face_mesh
 
-def get_face(img_data, face_analyser):
-    """Get the main face from image data"""
-    if isinstance(img_data, str):
-        img = cv2.imread(img_data)
-    else:
-        img = img_data
+def get_face_landmarks(image, face_mesh_detector):
+    """Get face landmarks using MediaPipe"""
+    rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    results = face_mesh_detector.process(rgb_image)
     
-    if img is None:
+    if not results.multi_face_landmarks:
         return None
     
-    faces = face_analyser.get(img)
+    landmarks = []
+    for landmark in results.multi_face_landmarks[0].landmark:
+        h, w = image.shape[:2]
+        x, y = int(landmark.x * w), int(landmark.y * h)
+        landmarks.append((x, y))
     
-    if len(faces) == 0:
+    return np.array(landmarks)
+
+def get_face_bbox(image, face_detector):
+    """Get face bounding box"""
+    rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    results = face_detector.process(rgb_image)
+    
+    if not results.detections:
         return None
     
-    # Return the face with largest area
-    return max(faces, key=lambda x: (x.bbox[2] - x.bbox[0]) * (x.bbox[3] - x.bbox[1]))
+    h, w = image.shape[:2]
+    detection = results.detections[0]
+    bbox = detection.location_data.relative_bounding_box
+    
+    x = int(bbox.xmin * w)
+    y = int(bbox.ymin * h)
+    width = int(bbox.width * w)
+    height = int(bbox.height * h)
+    
+    return (x, y, width, height)
 
-def swap_face(source_face, target_face, image, face_swapper):
-    """Perform face swap on a single image"""
-    if source_face is None or target_face is None or face_swapper is None:
-        return image
-    return face_swapper.get(image, target_face, source_face, paste_back=True)
+def warp_face(source_face, target_face, source_landmarks, target_landmarks):
+    """Warp source face to match target face landmarks using Delaunay triangulation"""
+    if source_landmarks is None or target_landmarks is None:
+        return source_face
+    
+    # Use a subset of landmarks for triangulation (face outline + key features)
+    key_points = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+                  33, 37, 40, 46, 52, 55, 61, 64, 70, 73, 76, 85, 88, 91, 94, 97, 100, 103, 106, 109, 112,
+                  133, 136, 139, 148, 151, 154, 157, 160, 163, 166, 169, 172, 175, 178, 181, 184, 187, 190, 193, 196,
+                  263, 266, 269, 276, 282, 285, 291, 294, 300, 303, 306, 315, 318, 321, 324, 327, 330, 333, 336, 339, 342,
+                  362, 365, 368, 377, 380, 383, 386, 389, 392, 395, 398, 401, 404, 407, 410, 413, 416, 419, 422, 425]
+    
+    try:
+        src_pts = np.float32([source_landmarks[i] for i in key_points if i < len(source_landmarks)])
+        tgt_pts = np.float32([target_landmarks[i] for i in key_points if i < len(target_landmarks)])
+        
+        # Estimate transformation
+        transformation = sktransform.estimate_transform('similarity', src_pts, tgt_pts)
+        
+        # Warp source face
+        warped = sktransform.warp(source_face, transformation.inverse, output_shape=target_face.shape[:2])
+        warped = (warped * 255).astype(np.uint8)
+        
+        return warped
+    except Exception as e:
+        print(f"[Face Swap] Warp error: {e}")
+        return source_face
+
+def blend_faces(source_face, target_face, mask):
+    """Blend source face onto target using seamless cloning"""
+    try:
+        # Create center point for seamless cloning
+        h, w = target_face.shape[:2]
+        center = (w // 2, h // 2)
+        
+        # Seamless clone
+        blended = cv2.seamlessClone(
+            source_face.astype(np.uint8),
+            target_face.astype(np.uint8),
+            mask.astype(np.uint8),
+            center,
+            cv2.NORMAL_CLONE
+        )
+        return blended
+    except Exception as e:
+        print(f"[Face Swap] Blend error: {e}")
+        # Fallback to simple alpha blending
+        alpha = 0.8
+        return cv2.addWeighted(source_face, alpha, target_face, 1 - alpha, 0)
+
+def create_face_mask(image, landmarks):
+    """Create a mask for the face region"""
+    mask = np.zeros(image.shape[:2], dtype=np.uint8)
+    
+    if landmarks is None or len(landmarks) == 0:
+        return mask
+    
+    # Create convex hull of face landmarks
+    hull = cv2.convexHull(landmarks.astype(np.float32))
+    cv2.fillConvexPoly(mask, hull.astype(np.int32), 255)
+    
+    # Feather the edges
+    kernel = np.ones((15, 15), np.uint8)
+    mask = cv2.GaussianBlur(mask, (31, 31), 0)
+    
+    return mask
+
+def simple_face_swap(source_img, target_img, detector, mesh_detector):
+    """Simple face swap using landmark warping and blending"""
+    # Get landmarks
+    source_landmarks = get_face_landmarks(source_img, mesh_detector)
+    target_landmarks = get_face_landmarks(target_img, mesh_detector)
+    
+    if source_landmarks is None or target_landmarks is None:
+        print("[Face Swap] No face detected")
+        return target_img
+    
+    # Get face bounding boxes
+    source_bbox = get_face_bbox(source_img, detector)
+    target_bbox = get_face_bbox(target_img, detector)
+    
+    if source_bbox is None or target_bbox is None:
+        return target_img
+    
+    # Extract source face
+    sx, sy, sw, sh = source_bbox
+    source_face = source_img[sy:sy+sh, sx:sx+sw]
+    
+    # Resize source face to match target
+    tx, ty, tw, th = target_bbox
+    source_face_resized = cv2.resize(source_face, (tw, th))
+    
+    # Create mask for blending
+    mask = np.zeros_like(target_img)
+    mask_landmarks = target_landmarks.copy()
+    mask_landmarks[:, 0] = mask_landmarks[:, 0] - tx
+    mask_landmarks[:, 1] = mask_landmarks[:, 1] - ty
+    face_mask = create_face_mask(source_face_resized, mask_landmarks)
+    
+    # Apply mask to all channels
+    mask_3channel = cv2.cvtColor(face_mask, cv2.COLOR_GRAY2BGR) / 255.0
+    
+    # Blend faces
+    target_face_region = target_img[ty:ty+th, tx:tx+tw].copy()
+    
+    # Simple alpha blending
+    blended_face = (source_face_resized * mask_3channel + target_face_region * (1 - mask_3channel)).astype(np.uint8)
+    
+    # Place back
+    result = target_img.copy()
+    result[ty:ty+th, tx:tx+tw] = blended_face
+    
+    # Color correction (match histograms)
+    result = match_color_histogram(result, target_img, mask_3channel)
+    
+    return result
+
+def match_color_histogram(source, target, mask):
+    """Match color histogram of source to target"""
+    result = source.copy()
+    
+    for i in range(3):  # BGR channels
+        source_hist = cv2.calcHist([source], [i], None, [256], [0, 256])
+        target_hist = cv2.calcHist([target], [i], None, [256], [0, 256])
+        
+        # Calculate CDF
+        source_cdf = source_hist.cumsum()
+        target_cdf = target_hist.cumsum()
+        
+        # Normalize
+        source_cdf = (source_cdf / source_cdf[-1]) * 255
+        target_cdf = (target_cdf / target_cdf[-1]) * 255
+        
+        # Create lookup table
+        lookup = np.interp(source_cdf, target_cdf, np.arange(256))
+        
+        # Apply only to face region
+        channel = source[:, :, i]
+        result[:, :, i] = np.take(lookup.astype(np.uint8), channel)
+    
+    # Blend with original to preserve background
+    result = (result * mask + source * (1 - mask)).astype(np.uint8)
+    
+    return result
 
 def process_video(source_img_path, target_video_path, output_path, progress_callback=None):
     """
     Process video face swap
-    
-    Args:
-        source_img_path: Path to source face image
-        target_video_path: Path to target video
-        output_path: Path for output video
-        progress_callback: Function to call with progress updates (0-100)
-    
-    Returns:
-        bool: Success status
     """
     try:
         # Load models
-        analyser = get_face_analyser()
-        swapper = get_face_swapper()
+        detector = get_face_detector()
+        mesh_detector = get_face_mesh()
         
-        if analyser is None or swapper is None:
+        if detector is None or mesh_detector is None:
             print("[Face Swap] Failed to load models")
             return False
         
-        # Get source face
-        source_face = get_face(source_img_path, analyser)
-        if source_face is None:
+        # Load source image
+        source_img = cv2.imread(source_img_path)
+        if source_img is None:
+            print("[Face Swap] Could not load source image")
+            return False
+        
+        # Verify source face
+        source_bbox = get_face_bbox(source_img, detector)
+        if source_bbox is None:
             print("[Face Swap] No face detected in source image")
             return False
         
-        print(f"[Face Swap] Source face detected: {source_face.bbox}")
+        print("[Face Swap] Source face detected")
         
         # Open target video
         reader = imageio.get_reader(target_video_path)
@@ -144,12 +283,12 @@ def process_video(source_img_path, target_video_path, output_path, progress_call
             # Convert RGB to BGR for OpenCV
             frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             
-            # Get target face
-            target_face = get_face(frame_bgr, analyser)
+            # Detect face in target
+            target_bbox = get_face_bbox(frame_bgr, detector)
             
-            if target_face is not None:
-                # Swap face
-                result_frame = swap_face(source_face, target_face, frame_bgr, swapper)
+            if target_bbox is not None:
+                # Perform face swap
+                result_frame = simple_face_swap(source_img, frame_bgr, detector, mesh_detector)
             else:
                 result_frame = frame_bgr
             
@@ -160,7 +299,7 @@ def process_video(source_img_path, target_video_path, output_path, progress_call
             processed += 1
             progress = int((processed / total_frames) * 100)
             
-            if progress_callback and processed % 5 == 0:  # Update every 5 frames
+            if progress_callback and processed % 5 == 0:
                 progress_callback(progress)
             
             if processed % 30 == 0:
@@ -182,42 +321,25 @@ def process_video(source_img_path, target_video_path, output_path, progress_call
         return False
 
 def process_image(source_img_path, target_img_path, output_path):
-    """
-    Process single image face swap
-    
-    Args:
-        source_img_path: Path to source face image
-        target_img_path: Path to target image
-        output_path: Path for output image
-    
-    Returns:
-        bool: Success status
-    """
+    """Process single image face swap"""
     try:
         # Load models
-        analyser = get_face_analyser()
-        swapper = get_face_swapper()
+        detector = get_face_detector()
+        mesh_detector = get_face_mesh()
         
-        if analyser is None or swapper is None:
+        if detector is None or mesh_detector is None:
             return False
         
-        # Get faces
-        source_face = get_face(source_img_path, analyser)
-        target_face = get_face(target_img_path, analyser)
-        
-        if source_face is None:
-            print("[Face Swap] No face detected in source image")
-            return False
-        
-        if target_face is None:
-            print("[Face Swap] No face detected in target image")
-            return False
-        
-        # Load target image
+        # Load images
+        source_img = cv2.imread(source_img_path)
         target_img = cv2.imread(target_img_path)
         
-        # Swap face
-        result = swap_face(source_face, target_face, target_img, swapper)
+        if source_img is None or target_img is None:
+            print("[Face Swap] Could not load images")
+            return False
+        
+        # Perform face swap
+        result = simple_face_swap(source_img, target_img, detector, mesh_detector)
         
         # Save result
         cv2.imwrite(output_path, result)
@@ -241,7 +363,7 @@ class FaceSwapWorker(threading.Thread):
         self.output_path = output_path
         self.callback = callback
         self.progress = 0
-        self.status = "pending"  # pending, processing, completed, failed
+        self.status = "pending"
         self.error_msg = ""
     
     def update_progress(self, value):
@@ -282,17 +404,13 @@ class FaceSwapWorker(threading.Thread):
 active_workers = {}
 
 def start_face_swap(source_img, target_video, output_path, task_id=None):
-    """
-    Start face swap processing in background
-    
-    Returns:
-        str: Task ID
-    """
+    """Start face swap processing in background"""
     if task_id is None:
         task_id = str(uuid.uuid4())
     
     def on_update(data):
-        active_workers[task_id].update(data)
+        if task_id in active_workers:
+            active_workers[task_id].update(data)
     
     worker = FaceSwapWorker(source_img, target_video, output_path, callback=on_update)
     active_workers[task_id] = {
@@ -320,6 +438,4 @@ def get_task_status(task_id):
     }
 
 if __name__ == "__main__":
-    # Test functionality
-    print("Face Swap Module - Test Mode")
-    ensure_model_exists()
+    print("Face Swap Module (CPU Only) - Test Mode")
