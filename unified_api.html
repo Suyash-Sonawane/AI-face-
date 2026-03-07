@@ -3432,6 +3432,7 @@
                         </p>
                         <input type="file" id="faceSwapSourceInput" accept="image/*" style="display: none;" onchange="handleFaceSwapSourceSelect(event)">
                     </div>
+                    <div id="faceSwapSourceStatus" style="margin-top:10px; font-size:0.85rem; color:var(--gray);">No source image selected</div>
                     
                     <div class="file-preview" id="faceSwapSourcePreview" style="display: none; margin-top: 15px;">
                         <img id="faceSwapSourceImg" style="max-width: 100%; max-height: 200px; border-radius: 12px;">
@@ -3460,6 +3461,7 @@
                         </p>
                         <input type="file" id="faceSwapTargetInput" accept="video/*" style="display: none;" onchange="handleFaceSwapTargetSelect(event)">
                     </div>
+                    <div id="faceSwapTargetStatus" style="margin-top:10px; font-size:0.85rem; color:var(--gray);">No target video selected</div>
                     
                     <div class="file-preview" id="faceSwapTargetPreview" style="display: none; margin-top: 15px;">
                         <video id="faceSwapTargetVideo" controls style="max-width: 100%; max-height: 200px; border-radius: 12px;"></video>
@@ -6376,10 +6378,25 @@
                 const preview = document.getElementById('faceSwapSourcePreview');
                 const img = document.getElementById('faceSwapSourceImg');
                 const uploadArea = document.getElementById('faceSwapSourceUpload');
+                const status = document.getElementById('faceSwapSourceStatus');
                 
-                img.src = URL.createObjectURL(file);
-                preview.style.display = 'block';
-                uploadArea.style.display = 'none';
+                // Show status immediately
+                status.textContent = `Selected: ${file.name} (${(file.size/1024/1024).toFixed(2)} MB)`;
+                status.style.color = 'var(--success)';
+                uploadArea.style.borderColor = 'var(--success)';
+                uploadArea.style.background = 'rgba(34, 197, 94, 0.1)';
+                
+                // Load and show preview
+                const objectUrl = URL.createObjectURL(file);
+                img.onload = () => {
+                    preview.style.display = 'block';
+                    URL.revokeObjectURL(objectUrl);
+                };
+                img.onerror = () => {
+                    showToast('error', 'Preview Error', 'Could not preview source image');
+                    preview.style.display = 'none';
+                };
+                img.src = objectUrl;
                 
                 updateFaceSwapButton();
             }
@@ -6392,10 +6409,26 @@
                 const preview = document.getElementById('faceSwapTargetPreview');
                 const video = document.getElementById('faceSwapTargetVideo');
                 const uploadArea = document.getElementById('faceSwapTargetUpload');
+                const status = document.getElementById('faceSwapTargetStatus');
                 
-                video.src = URL.createObjectURL(file);
-                preview.style.display = 'block';
-                uploadArea.style.display = 'none';
+                // Show status immediately
+                status.textContent = `Selected: ${file.name} (${(file.size/1024/1024).toFixed(2)} MB)`;
+                status.style.color = 'var(--success)';
+                uploadArea.style.borderColor = 'var(--success)';
+                uploadArea.style.background = 'rgba(34, 197, 94, 0.1)';
+                
+                // Load and show video preview
+                const objectUrl = URL.createObjectURL(file);
+                video.onloadeddata = () => {
+                    preview.style.display = 'block';
+                    URL.revokeObjectURL(objectUrl);
+                };
+                video.onerror = () => {
+                    showToast('error', 'Preview Error', 'Could not preview target video');
+                    preview.style.display = 'none';
+                };
+                video.src = objectUrl;
+                video.load();
                 
                 updateFaceSwapButton();
             }
@@ -6404,7 +6437,9 @@
         function clearFaceSwapSource() {
             faceSwapSourceFile = null;
             document.getElementById('faceSwapSourcePreview').style.display = 'none';
-            document.getElementById('faceSwapSourceUpload').style.display = 'block';
+            document.getElementById('faceSwapSourceUpload').style.borderColor = 'rgba(99, 102, 241, 0.3)';
+            document.getElementById('faceSwapSourceStatus').textContent = 'No source image selected';
+            document.getElementById('faceSwapSourceStatus').style.color = 'var(--gray)';
             document.getElementById('faceSwapSourceInput').value = '';
             updateFaceSwapButton();
         }
@@ -6412,7 +6447,9 @@
         function clearFaceSwapTarget() {
             faceSwapTargetFile = null;
             document.getElementById('faceSwapTargetPreview').style.display = 'none';
-            document.getElementById('faceSwapTargetUpload').style.display = 'block';
+            document.getElementById('faceSwapTargetUpload').style.borderColor = 'rgba(99, 102, 241, 0.3)';
+            document.getElementById('faceSwapTargetStatus').textContent = 'No target video selected';
+            document.getElementById('faceSwapTargetStatus').style.color = 'var(--gray)';
             document.getElementById('faceSwapTargetInput').value = '';
             updateFaceSwapButton();
         }
