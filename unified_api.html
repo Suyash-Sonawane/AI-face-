@@ -596,6 +596,32 @@
             opacity: 0.5;
         }
 
+        /* File Preview for Face Swap */
+        .file-preview {
+            margin-top: 15px;
+            padding: 15px;
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .file-preview img {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 8px;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .file-preview video {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 8px;
+            display: block;
+            margin: 0 auto;
+        }
+
         /* Progress Bar */
         .progress-container {
             width: 100%;
@@ -6372,8 +6398,10 @@
         let faceSwapCheckInterval = null;
 
         function handleFaceSwapSourceSelect(event) {
+            console.log('Source file selected', event.target.files);
             const file = event.target.files[0];
             if (file) {
+                console.log('File selected:', file.name, 'Size:', file.size);
                 faceSwapSourceFile = file;
                 const preview = document.getElementById('faceSwapSourcePreview');
                 const img = document.getElementById('faceSwapSourceImg');
@@ -6388,23 +6416,32 @@
                 
                 // Load and show preview
                 const objectUrl = URL.createObjectURL(file);
+                console.log('Created object URL:', objectUrl);
+                
                 img.onload = () => {
+                    console.log('Image loaded successfully');
                     preview.style.display = 'block';
-                    URL.revokeObjectURL(objectUrl);
+                    console.log('Preview display set to block');
                 };
-                img.onerror = () => {
+                img.onerror = (e) => {
+                    console.error('Image load error:', e);
                     showToast('error', 'Preview Error', 'Could not preview source image');
                     preview.style.display = 'none';
                 };
                 img.src = objectUrl;
+                console.log('Set image src to object URL');
                 
                 updateFaceSwapButton();
+            } else {
+                console.log('No file selected');
             }
         }
 
         function handleFaceSwapTargetSelect(event) {
+            console.log('Target file selected', event.target.files);
             const file = event.target.files[0];
             if (file) {
+                console.log('Video file selected:', file.name, 'Size:', file.size);
                 faceSwapTargetFile = file;
                 const preview = document.getElementById('faceSwapTargetPreview');
                 const video = document.getElementById('faceSwapTargetVideo');
@@ -6419,18 +6456,25 @@
                 
                 // Load and show video preview
                 const objectUrl = URL.createObjectURL(file);
+                console.log('Created video object URL:', objectUrl);
+                
                 video.onloadeddata = () => {
+                    console.log('Video loaded successfully');
                     preview.style.display = 'block';
-                    URL.revokeObjectURL(objectUrl);
+                    console.log('Video preview display set to block');
                 };
-                video.onerror = () => {
+                video.onerror = (e) => {
+                    console.error('Video load error:', e);
                     showToast('error', 'Preview Error', 'Could not preview target video');
                     preview.style.display = 'none';
                 };
                 video.src = objectUrl;
                 video.load();
+                console.log('Set video src and called load()');
                 
                 updateFaceSwapButton();
+            } else {
+                console.log('No video file selected');
             }
         }
 
