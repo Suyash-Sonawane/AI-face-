@@ -924,13 +924,11 @@ def api_face_swap_status(task_id):
 def api_face_swap_check_models():
     """Check if face swap models are available"""
     try:
-        from face_swap import ensure_model_exists, get_face_analyser
-        model_ready = ensure_model_exists()
-        
+        # MediaPipe models are included in the package, no download needed
         return jsonify({
             'success': True,
-            'models_ready': model_ready,
-            'message': 'Models are ready' if model_ready else 'Models need to be downloaded'
+            'models_ready': True,
+            'message': 'MediaPipe models are ready (included in package)'
         }), 200
         
     except Exception as e:
