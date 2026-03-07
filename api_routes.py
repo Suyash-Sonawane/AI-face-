@@ -830,6 +830,113 @@ def api_update_config(config_key):
         return jsonify({'success': False, 'error': 'Failed to update config'}), 500
 
 
+# ==================== FACE SWAP ====================
+
+@api_bp.route('/face-swap', methods=['POST'])
+@require_auth
+def api_face_swap():
+    """Start face swap processing"""
+    try:
+        # Check if face_swap module is available
+        try:
+            from face_swap import start_face_swap
+        except ImportError as e:
+            return jsonify({'success': False, 'error': f'Face swap module not available: {str(e)}'}), 500
+        
+        # Get uploaded files
+        source_img = request.files.get('source_image')
+        target_video = request.files.get('target_video')
+        
+        if not source_img or not target_video:
+            return jsonify({'success': False, 'error': 'Source image and target video are required'}), 400
+        
+        # Validate file types
+        allowed_img = ['.jpg', '.jpeg', '.png', '.webp']
+        allowed_video = ['.mp4', '.webm', '.mov', '.avi']
+        
+        img_ext = os.path.splitext(source_img.filename)[1].lower()
+        video_ext = os.path.splitext(target_video.filename)[1].lower()
+        
+        if img_ext not in allowed_img:
+            return jsonify({'success': False, 'error': f'Invalid image format. Allowed: {allowed_img}'}), 400
+        
+        if video_ext not in allowed_video:
+            return jsonify({'success': False, 'error': f'Invalid video format. Allowed: {allowed_video}'}), 400
+        
+        # Create unique filenames
+        task_id = str(uuid.uuid4())
+        upload_dir = "uploads/face_swap"
+        result_dir = "static/results"
+        os.makedirs(upload_dir, exist_ok=True)
+        os.makedirs(result_dir, exist_ok=True)
+        
+        source_path = os.path.join(upload_dir, f"{task_id}_source{img_ext}")
+        target_path = os.path.join(upload_dir, f"{task_id}_target{video_ext}")
+        output_path = os.path.join(result_dir, f"{task_id}_faceswap.mp4")
+        
+        # Save uploaded files
+        source_img.save(source_path)
+        target_video.save(target_path)
+        
+        # Start face swap processing
+        from face_swap import start_face_swap
+        start_face_swap(source_path, target_path, output_path, task_id)
+        
+        return jsonify({
+            'success': True,
+            'task_id': task_id,
+            'message': 'Face swap processing started',
+            'status': 'processing'
+        }), 200
+        
+    except Exception as e:
+        print(f"[Face Swap API Error] {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/face-swap/<task_id>/status', methods=['GET'])
+@require_auth
+def api_face_swap_status(task_id):
+    """Get face swap processing status"""
+    try:
+        from face_swap import get_task_status
+        status = get_task_status(task_id)
+        
+        if status is None:
+            return jsonify({'success': False, 'error': 'Task not found'}), 404
+        
+        return jsonify({
+            'success': True,
+            'task_id': task_id,
+            'status': status['status'],
+            'progress': status['progress'],
+            'error': status['error'],
+            'output_url': f'/static/results/{os.path.basename(status["output_path"])}' if status['status'] == 'completed' and os.path.exists(status['output_path']) else None
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/face-swap/models/check', methods=['GET'])
+def api_face_swap_check_models():
+    """Check if face swap models are available"""
+    try:
+        from face_swap import ensure_model_exists, get_face_analyser
+        model_ready = ensure_model_exists()
+        
+        return jsonify({
+            'success': True,
+            'models_ready': model_ready,
+            'message': 'Models are ready' if model_ready else 'Models need to be downloaded'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # ==================== HEALTH CHECK ====================
 
 @api_bp.route('/health', methods=['GET'])

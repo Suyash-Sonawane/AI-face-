@@ -3404,6 +3404,111 @@
         </div>
     </div>
 
+    <!-- FACE SWAP VIEW: Face Swap Feature -->
+    <div id="faceSwapView" class="view-section">
+        <div class="container">
+            <div class="hero">
+                <h1><i class="fas fa-exchange-alt" style="margin-right: 15px;"></i>Face Swap</h1>
+                <p>Swap faces in videos. Upload a source face image and a target video to generate a face-swapped video.</p>
+            </div>
+
+            <div class="form-grid">
+                <!-- Source Face Image Upload -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="fas fa-user-circle"></i></div>
+                        <div>
+                            <div class="card-title">Source Face Image</div>
+                            <div class="card-subtitle">Upload the face you want to use</div>
+                        </div>
+                    </div>
+                    
+                    <div class="upload-area" id="faceSwapSourceUpload" onclick="document.getElementById('faceSwapSourceInput').click()">
+                        <i class="fas fa-cloud-upload-alt" style="font-size: 2.5rem; color: var(--primary); margin-bottom: 15px;"></i>
+                        <h4>Click to Upload Source Face</h4>
+                        <p style="color: var(--gray); font-size: 0.9rem; margin-top: 8px;">
+                            Supports: JPG, PNG, WebP<br>
+                            <span style="font-size: 0.8rem;">Clear frontal face photo works best</span>
+                        </p>
+                        <input type="file" id="faceSwapSourceInput" accept="image/*" style="display: none;" onchange="handleFaceSwapSourceSelect(event)">
+                    </div>
+                    
+                    <div class="file-preview" id="faceSwapSourcePreview" style="display: none; margin-top: 15px;">
+                        <img id="faceSwapSourceImg" style="max-width: 100%; max-height: 200px; border-radius: 12px;">
+                        <button onclick="clearFaceSwapSource()" style="margin-top: 10px;">
+                            <i class="fas fa-trash"></i> Remove
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Target Video Upload -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="fas fa-video"></i></div>
+                        <div>
+                            <div class="card-title">Target Video</div>
+                            <div class="card-subtitle">Upload video to swap faces in</div>
+                        </div>
+                    </div>
+                    
+                    <div class="upload-area" id="faceSwapTargetUpload" onclick="document.getElementById('faceSwapTargetInput').click()">
+                        <i class="fas fa-film" style="font-size: 2.5rem; color: var(--secondary); margin-bottom: 15px;"></i>
+                        <h4>Click to Upload Target Video</h4>
+                        <p style="color: var(--gray); font-size: 0.9rem; margin-top: 8px;">
+                            Supports: MP4, WebM, MOV, AVI<br>
+                            <span style="font-size: 0.8rem;">Video should have a clear face to replace</span>
+                        </p>
+                        <input type="file" id="faceSwapTargetInput" accept="video/*" style="display: none;" onchange="handleFaceSwapTargetSelect(event)">
+                    </div>
+                    
+                    <div class="file-preview" id="faceSwapTargetPreview" style="display: none; margin-top: 15px;">
+                        <video id="faceSwapTargetVideo" controls style="max-width: 100%; max-height: 200px; border-radius: 12px;"></video>
+                        <button onclick="clearFaceSwapTarget()" style="margin-top: 10px;">
+                            <i class="fas fa-trash"></i> Remove
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Generate Button -->
+            <div style="text-align: center; margin: 30px 0;">
+                <button class="btn btn-primary btn-large" id="faceSwapGenerateBtn" onclick="startFaceSwap()" disabled>
+                    <i class="fas fa-magic"></i>
+                    <span>Generate Face Swap Video</span>
+                </button>
+            </div>
+
+            <!-- Progress Section -->
+            <div id="faceSwapProgress" style="display: none; max-width: 600px; margin: 30px auto;">
+                <div class="card">
+                    <div class="progress-header">
+                        <span id="faceSwapStatusText">Initializing...</span>
+                        <span id="faceSwapProgressPercent">0%</span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="faceSwapProgressBar" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Result Section -->
+            <div id="faceSwapResult" style="display: none; max-width: 800px; margin: 30px auto;">
+                <div class="card">
+                    <h3 style="margin-bottom: 20px;"><i class="fas fa-check-circle" style="color: var(--success);"></i> Face Swap Complete!</h3>
+                    <video id="faceSwapResultVideo" controls style="width: 100%; border-radius: 12px;"></video>
+                    <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+                        <a id="faceSwapDownloadBtn" class="btn btn-primary" download>
+                            <i class="fas fa-download"></i> Download Video
+                        </a>
+                        <button class="btn btn-secondary" onclick="resetFaceSwap()">
+                            <i class="fas fa-redo"></i> Swap Another
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ADMIN VIEW: Admin Panel -->
     <div id="adminView" class="view-section">
         <div class="container">
@@ -4048,6 +4153,10 @@
                         <i class="fas fa-th-large"></i>
                         <span>My Videos</span>
                     </button>
+                    <button class="nav-btn ${isActiveView('faceSwapView') ? 'active' : ''}" onclick="showFaceSwapView()">
+                        <i class="fas fa-exchange-alt"></i>
+                        <span>Face Swap</span>
+                    </button>
                     ${currentUser.role === 'admin' ? `
                     <button class="nav-btn ${isActiveView('adminView') ? 'active' : ''}" onclick="showAdminView()">
                         <i class="fas fa-shield-alt"></i>
@@ -4130,6 +4239,18 @@
             document.title = 'My Videos - AI Faces';
             await loadUserVideos();
             updateUI();
+        }
+
+        function showFaceSwapView() {
+            if (!currentUser) {
+                showAuthView();
+                return;
+            }
+            hideAllViews();
+            document.getElementById('faceSwapView').classList.add('active');
+            document.title = 'Face Swap - AI Faces';
+            updateUI();
+            checkFaceSwapModels();
         }
 
         async function showAdminView() {
@@ -6240,6 +6361,209 @@
                 closeCameraModal();
             }
         });
+
+        // ==================== FACE SWAP FUNCTIONS ====================
+
+        let faceSwapSourceFile = null;
+        let faceSwapTargetFile = null;
+        let faceSwapTaskId = null;
+        let faceSwapCheckInterval = null;
+
+        function handleFaceSwapSourceSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                faceSwapSourceFile = file;
+                const preview = document.getElementById('faceSwapSourcePreview');
+                const img = document.getElementById('faceSwapSourceImg');
+                const uploadArea = document.getElementById('faceSwapSourceUpload');
+                
+                img.src = URL.createObjectURL(file);
+                preview.style.display = 'block';
+                uploadArea.style.display = 'none';
+                
+                updateFaceSwapButton();
+            }
+        }
+
+        function handleFaceSwapTargetSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                faceSwapTargetFile = file;
+                const preview = document.getElementById('faceSwapTargetPreview');
+                const video = document.getElementById('faceSwapTargetVideo');
+                const uploadArea = document.getElementById('faceSwapTargetUpload');
+                
+                video.src = URL.createObjectURL(file);
+                preview.style.display = 'block';
+                uploadArea.style.display = 'none';
+                
+                updateFaceSwapButton();
+            }
+        }
+
+        function clearFaceSwapSource() {
+            faceSwapSourceFile = null;
+            document.getElementById('faceSwapSourcePreview').style.display = 'none';
+            document.getElementById('faceSwapSourceUpload').style.display = 'block';
+            document.getElementById('faceSwapSourceInput').value = '';
+            updateFaceSwapButton();
+        }
+
+        function clearFaceSwapTarget() {
+            faceSwapTargetFile = null;
+            document.getElementById('faceSwapTargetPreview').style.display = 'none';
+            document.getElementById('faceSwapTargetUpload').style.display = 'block';
+            document.getElementById('faceSwapTargetInput').value = '';
+            updateFaceSwapButton();
+        }
+
+        function updateFaceSwapButton() {
+            const btn = document.getElementById('faceSwapGenerateBtn');
+            btn.disabled = !(faceSwapSourceFile && faceSwapTargetFile);
+        }
+
+        async function checkFaceSwapModels() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/face-swap/models/check`);
+                const data = await response.json();
+                
+                if (!data.models_ready) {
+                    showToast('info', 'Model Download', 'Face swap models will be downloaded on first use. This may take a few minutes.');
+                }
+            } catch (e) {
+                console.log('Could not check face swap models:', e);
+            }
+        }
+
+        async function startFaceSwap() {
+            if (!faceSwapSourceFile || !faceSwapTargetFile) {
+                showToast('error', 'Missing Files', 'Please upload both source image and target video');
+                return;
+            }
+
+            const btn = document.getElementById('faceSwapGenerateBtn');
+            const progressSection = document.getElementById('faceSwapProgress');
+            const resultSection = document.getElementById('faceSwapResult');
+            
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+            progressSection.style.display = 'block';
+            resultSection.style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('source_image', faceSwapSourceFile);
+            formData.append('target_video', faceSwapTargetFile);
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/face-swap`, {
+                    method: 'POST',
+                    headers: getApiHeaders(),
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    faceSwapTaskId = data.task_id;
+                    startFaceSwapStatusCheck();
+                } else {
+                    throw new Error(data.error || 'Failed to start face swap');
+                }
+            } catch (error) {
+                showToast('error', 'Face Swap Failed', error.message);
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-magic"></i> Generate Face Swap Video';
+                progressSection.style.display = 'none';
+            }
+        }
+
+        function startFaceSwapStatusCheck() {
+            if (faceSwapCheckInterval) {
+                clearInterval(faceSwapCheckInterval);
+            }
+
+            faceSwapCheckInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/face-swap/${faceSwapTaskId}/status`, {
+                        headers: getApiHeaders()
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        updateFaceSwapProgress(data);
+
+                        if (data.status === 'completed') {
+                            clearInterval(faceSwapCheckInterval);
+                            showFaceSwapResult(data.output_url);
+                        } else if (data.status === 'failed') {
+                            clearInterval(faceSwapCheckInterval);
+                            showToast('error', 'Face Swap Failed', data.error || 'Processing failed');
+                            resetFaceSwapUI();
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error checking face swap status:', e);
+                }
+            }, 2000);
+        }
+
+        function updateFaceSwapProgress(data) {
+            const progressBar = document.getElementById('faceSwapProgressBar');
+            const progressPercent = document.getElementById('faceSwapProgressPercent');
+            const statusText = document.getElementById('faceSwapStatusText');
+            
+            progressBar.style.width = `${data.progress}%`;
+            progressPercent.textContent = `${data.progress}%`;
+            
+            const statusMessages = {
+                'pending': 'Waiting to start...',
+                'processing': 'Swapping faces...',
+                'completed': 'Complete!',
+                'failed': 'Failed'
+            };
+            statusText.textContent = statusMessages[data.status] || data.status;
+        }
+
+        function showFaceSwapResult(videoUrl) {
+            const progressSection = document.getElementById('faceSwapProgress');
+            const resultSection = document.getElementById('faceSwapResult');
+            const resultVideo = document.getElementById('faceSwapResultVideo');
+            const downloadBtn = document.getElementById('faceSwapDownloadBtn');
+            const btn = document.getElementById('faceSwapGenerateBtn');
+            
+            progressSection.style.display = 'none';
+            resultSection.style.display = 'block';
+            
+            resultVideo.src = `${API_BASE_URL}${videoUrl}`;
+            downloadBtn.href = `${API_BASE_URL}${videoUrl}`;
+            
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-magic"></i> Generate Face Swap Video';
+            
+            showToast('success', 'Face Swap Complete', 'Your face-swapped video is ready!');
+        }
+
+        function resetFaceSwap() {
+            clearFaceSwapSource();
+            clearFaceSwapTarget();
+            
+            document.getElementById('faceSwapProgress').style.display = 'none';
+            document.getElementById('faceSwapResult').style.display = 'none';
+            
+            if (faceSwapCheckInterval) {
+                clearInterval(faceSwapCheckInterval);
+            }
+            
+            faceSwapTaskId = null;
+        }
+
+        function resetFaceSwapUI() {
+            const btn = document.getElementById('faceSwapGenerateBtn');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-magic"></i> Generate Face Swap Video';
+            document.getElementById('faceSwapProgress').style.display = 'none';
+        }
     </script>
 
     <!-- Camera Capture Modal -->
