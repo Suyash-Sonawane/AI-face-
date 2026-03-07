@@ -3449,7 +3449,7 @@
                         </div>
                     </div>
                     
-                    <div class="upload-area" id="faceSwapSourceUpload" onclick="document.getElementById('faceSwapSourceInput').click()">
+                    <label class="upload-area" id="faceSwapSourceUpload" for="faceSwapSourceInput" style="cursor: pointer;">
                         <i class="fas fa-cloud-upload-alt" style="font-size: 2.5rem; color: var(--primary); margin-bottom: 15px;"></i>
                         <h4>Click to Upload Source Face</h4>
                         <p style="color: var(--gray); font-size: 0.9rem; margin-top: 8px;">
@@ -3457,7 +3457,7 @@
                             <span style="font-size: 0.8rem;">Clear frontal face photo works best</span>
                         </p>
                         <input type="file" id="faceSwapSourceInput" accept="image/*" style="display: none;" onchange="handleFaceSwapSourceSelect(event)">
-                    </div>
+                    </label>
                     <div id="faceSwapSourceStatus" style="margin-top:10px; font-size:0.85rem; color:var(--gray);">No source image selected</div>
                     
                     <div class="file-preview" id="faceSwapSourcePreview" style="display: none; margin-top: 15px;">
@@ -3478,7 +3478,7 @@
                         </div>
                     </div>
                     
-                    <div class="upload-area" id="faceSwapTargetUpload" onclick="document.getElementById('faceSwapTargetInput').click()">
+                    <label class="upload-area" id="faceSwapTargetUpload" for="faceSwapTargetInput" style="cursor: pointer;">
                         <i class="fas fa-film" style="font-size: 2.5rem; color: var(--secondary); margin-bottom: 15px;"></i>
                         <h4>Click to Upload Target Video</h4>
                         <p style="color: var(--gray); font-size: 0.9rem; margin-top: 8px;">
@@ -3486,7 +3486,7 @@
                             <span style="font-size: 0.8rem;">Video should have a clear face to replace</span>
                         </p>
                         <input type="file" id="faceSwapTargetInput" accept="video/*" style="display: none;" onchange="handleFaceSwapTargetSelect(event)">
-                    </div>
+                    </label>
                     <div id="faceSwapTargetStatus" style="margin-top:10px; font-size:0.85rem; color:var(--gray);">No target video selected</div>
                     
                     <div class="file-preview" id="faceSwapTargetPreview" style="display: none; margin-top: 15px;">
